@@ -1,0 +1,377 @@
+/* Mind Dump - App Styles */
+
+:root {
+  --category-unclear: #6c757d;
+  --category-feelings: #e83e8c;
+  --category-projects: #0d6efd;
+  --category-desires: #ffc107;
+  --category-tasks: #198754;
+  --category-not-do: #dc3545;
+}
+
+/* General */
+body {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+}
+
+/* Category columns */
+.category-column {
+  background-color: #fff;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  display: flex;
+  flex-direction: column;
+}
+
+.category-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 3px solid var(--category-unclear);
+}
+
+/* Category-specific border colors */
+.category-column[data-category="unclear"] .category-header {
+  border-bottom-color: var(--category-unclear);
+}
+
+.category-column[data-category="feelings"] .category-header {
+  border-bottom-color: var(--category-feelings);
+}
+
+.category-column[data-category="projects"] .category-header {
+  border-bottom-color: var(--category-projects);
+}
+
+.category-column[data-category="desires"] .category-header {
+  border-bottom-color: var(--category-desires);
+}
+
+.category-column[data-category="tasks"] .category-header {
+  border-bottom-color: var(--category-tasks);
+}
+
+.category-column[data-category="not-do"] .category-header {
+  border-bottom-color: var(--category-not-do);
+}
+
+/* Notes list */
+.notes-list {
+  flex: 1;
+  min-height: 100px;
+  overflow-y: auto;
+  max-height: calc(100vh - 300px);
+}
+
+/* Note card */
+.note-card {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  cursor: grab;
+  transition: box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
+}
+
+.note-card:hover {
+  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+
+.note-card.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+  cursor: grabbing;
+}
+
+.note-card.drag-over {
+  border: 2px dashed #0d6efd;
+}
+
+.note-card.pinned {
+  border-left: 3px solid #ffc107;
+  background-color: #fffbeb;
+}
+
+.note-text {
+  margin-bottom: 0.5rem;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.note-meta {
+  font-size: 0.75rem;
+  color: #6c757d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.note-actions {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.note-card:hover .note-actions,
+.note-card:focus-within .note-actions {
+  opacity: 1;
+}
+
+.note-actions .btn {
+  padding: 0.125rem 0.375rem;
+  font-size: 0.75rem;
+}
+
+/* Input area */
+.note-input {
+  resize: none;
+  font-size: 0.875rem;
+}
+
+.note-input:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Drop zone highlight */
+.category-column.drop-target {
+  background-color: #e7f1ff;
+  border: 2px dashed #0d6efd;
+}
+
+/* Mobile tabs */
+#category-tabs {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#category-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-pills .nav-link {
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Kanban grid desktop */
+@media (min-width: 992px) {
+  .kanban-grid {
+    min-height: calc(100vh - 150px);
+  }
+  
+  .category-column {
+    min-height: 400px;
+  }
+}
+
+/* Search highlight */
+.note-text mark {
+  background-color: #fff3cd;
+  padding: 0;
+}
+
+/* Move menu */
+.move-menu {
+  font-size: 0.875rem;
+}
+
+.move-menu .dropdown-item {
+  padding: 0.375rem 0.75rem;
+}
+
+/* Accessibility: focus visible */
+*:focus-visible {
+  outline: 3px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #0d6efd;
+  color: white;
+  padding: 8px 16px;
+  z-index: 1100;
+  text-decoration: none;
+  font-weight: bold;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .note-card {
+    border-width: 2px;
+    border-color: #000;
+  }
+  
+  .category-header {
+    border-bottom-width: 4px;
+  }
+  
+  .btn {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .note-card {
+    transition: none;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-card: #0f3460;
+    --text-primary: #e8e8e8;
+    --text-secondary: #b0b0b0;
+    --border-color: #4a4a6a;
+  }
+  
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+  
+  .category-column {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+  }
+  
+  .note-card {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+  }
+  
+  .note-card.pinned {
+    background-color: #1a1a3e;
+    border-left-color: #ffc107;
+  }
+  
+  .note-meta {
+    color: var(--text-secondary);
+  }
+  
+  .form-control {
+    background-color: var(--bg-card);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+  }
+  
+  .form-control:focus {
+    background-color: var(--bg-secondary);
+    border-color: #0d6efd;
+    color: var(--text-primary);
+  }
+  
+  .modal-content {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+  
+  .dropdown-menu {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+  }
+  
+  .dropdown-item {
+    color: var(--text-primary);
+  }
+  
+  .dropdown-item:hover,
+  .dropdown-item:focus {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+  }
+  
+  .empty-state {
+    color: var(--text-secondary);
+  }
+}
+
+/* Keyboard navigation indicator for note cards */
+.note-card:focus {
+  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.5);
+}
+
+/* Touch-friendly targets */
+@media (pointer: coarse) {
+  .note-actions .btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0.5rem;
+  }
+  
+  .nav-link {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Pin button */
+.btn-pin {
+  color: #6c757d;
+}
+
+.btn-pin.active,
+.btn-pin:hover {
+  color: #ffc107;
+}
+
+/* Toast notifications */
+.toast-container {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 1100;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+/* Badge count */
+.note-count {
+  font-size: 0.75rem;
+  min-width: 1.5rem;
+}

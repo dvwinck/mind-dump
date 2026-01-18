@@ -1,0 +1,412 @@
+/**
+ * Mind Dump - Storage Module Tests
+ */
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as storage from '../src/storage.js';
+
+// Mock localStorage
+const localStorageMock = (() => {
+  let store = {};
+  return {
+    getItem: vi.fn((key) => store[key] || null),
+    setItem: vi.fn((key, value) => { store[key] = value; }),
+    removeItem: vi.fn((key) => { delete store[key]; }),
+    clear: vi.fn(() => { store = {}; })
+  };
+})();
+
+Object.defineProperty(global, 'localStorage', { value: localStorageMock });
+
+describe('Storage Module', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.clearAllMocks();
+  });
+
+  describe('generateId', () => {
+    it('should generate unique IDs', () => {
+      const id1 = storage.generateId();
+      const id2 = storage.generateId();
+      
+      expect(id1).toBeTruthy();
+      expect(id2).toBeTruthy();
+      expect(id1).not.toBe(id2);
+    });
+
+    it('should generate string IDs', () => {
+      const id = storage.generateId();
+      expect(typeof id).toBe('string');
+    });
+  });
+
+  describe('now', () => {
+    it('should return ISO timestamp', () => {
+      const timestamp = storage.now();
+      expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    });
+  });
+
+  describe('loadAll', () => {
+    it('should return empty array when no data', () => {
+      const notes = storage.loadAll();
+      expect(notes).toEqual([]);
+    });
+
+    it('should return stored notes', () => {
+      const testNotes = [
+        { id: '1', text: 'Test', category: 'tasks' }
+      ];
+      localStorageMock.getItem.mockReturnValueOnce(JSON.stringify(testNotes));
+      
+      const notes = storage.loadAll();
+      expect(notes).toEqual(testNotes);
+    });
+
+    it('should handle invalid JSON gracefully', () => {
+      localStorageMock.getItem.mockReturnValueOnce('invalid json');
+      
+      const notes = storage.loadAll();
+      expect(notes).toEqual([]);
+    });
+  });
+
+  describe('saveAll', () => {
+    it('should save notes to localStorage', () => {
+      const testNotes = [
+        { id: '1', text: 'Test', category: 'tasks' }
+      ];
+      
+      storage.saveAll(testNotes);
+      
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(
+        'mind-dump-notes',
+        JSON.stringify(testNotes)
+      );
+    });
+  });
+
+  describe('createNote', () => {
+    it('should create a note with required fields', () => {
+      const note = storage.createNote('Test note', 'tasks');
+      
+      expect(note).toHaveProperty('id');
+      expect(note.text).toBe('Test note');
+      expect(note.category).toBe('tasks');
+      expect(note.pinned).toBe(false);
+      expect(note).toHaveProperty('createdAt');
+      expect(note).toHaveProperty('updatedAt');
+    });
+
+    it('should trim whitespace from text', () => {
+      const note = storage.createNote('  Test note  ', 'tasks');
+      expect(note.text).toBe('Test note');
+    });
+
+    it('should create pinned note when specified', () => {
+      const note = storage.createNote('Test', 'tasks', true);
+      expect(note.pinned).toBe(true);
+    });
+
+    it('should save to localStorage', () => {
+      storage.createNote('Test', 'tasks');
+      expect(localStorageMock.setItem).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateNote', () => {
+    beforeEach(() => {
+      const testNotes = [
+        { id: '1', text: 'Original', category: 'tasks', updatedAt: '2024-01-01' }
+      ];
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(testNotes));
+    });
+
+    it('should update note text', () => {
+      const updated = storage.updateNote('1', { text: 'Updated' });
+      
+      expect(updated.text).toBe('Updated');
+      expect(updated.updatedAt).not.toBe('2024-01-01');
+    });
+
+    it('should return null for non-existent note', () => {
+      const result = storage.updateNote('non-existent', { text: 'Updated' });
+      expect(result).toBeNull();
+    });
+
+    it('should preserve other fields when updating', () => {
+      const updated = storage.updateNote('1', { text: 'Updated' });
+      
+      expect(updated.category).toBe('tasks');
+      expect(updated.id).toBe('1');
+    });
+  });
+
+  describe('deleteNote', () => {
+    beforeEach(() => {
+      const testNotes = [
+        { id: '1', text: 'Note 1', category: 'tasks' },
+        { id: '2', text: 'Note 2', category: 'tasks' }
+      ];
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(testNotes));
+    });
+
+    it('should delete existing note and return true', () => {
+      const result = storage.deleteNote('1');
+      expect(result).toBe(true);
+    });
+
+    it('should return false for non-existent note', () => {
+      const result = storage.deleteNote('non-existent');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('getNotesByCategory', () => {
+    beforeEach(() => {
+      const testNotes = [
+        { id: '1', text: 'A', category: 'tasks', pinned: false, updatedAt: '2024-01-01' },
+        { id: '2', text: 'B', category: 'tasks', pinned: true, updatedAt: '2024-01-02' },
+        { id: '3', text: 'C', category: 'feelings', pinned: false, updatedAt: '2024-01-03' }
+      ];
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(testNotes));
+    });
+
+    it('should filter by category', () => {
+      const tasks = storage.getNotesByCategory('tasks');
+      expect(tasks).toHaveLength(2);
+      expect(tasks.every(n => n.category === 'tasks')).toBe(true);
+    });
+
+    it('should sort pinned notes first', () => {
+      const tasks = storage.getNotesByCategory('tasks');
+      expect(tasks[0].pinned).toBe(true);
+    });
+
+    it('should return empty array for empty category', () => {
+      const notes = storage.getNotesByCategory('projects');
+      expect(notes).toEqual([]);
+    });
+  });
+
+  describe('moveNote', () => {
+    beforeEach(() => {
+      const testNotes = [
+        { id: '1', text: 'Test', category: 'tasks', updatedAt: '2024-01-01' }
+      ];
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(testNotes));
+    });
+
+    it('should move note to new category', () => {
+      const updated = storage.moveNote('1', 'feelings');
+      expect(updated.category).toBe('feelings');
+    });
+
+    it('should update the updatedAt timestamp', () => {
+      const updated = storage.moveNote('1', 'feelings');
+      expect(updated.updatedAt).not.toBe('2024-01-01');
+    });
+  });
+
+  describe('togglePinned', () => {
+    beforeEach(() => {
+      const testNotes = [
+        { id: '1', text: 'Test', category: 'tasks', pinned: false }
+      ];
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(testNotes));
+    });
+
+    it('should toggle pinned from false to true', () => {
+      const updated = storage.togglePinned('1');
+      expect(updated.pinned).toBe(true);
+    });
+  });
+
+  describe('searchNotes', () => {
+    beforeEach(() => {
+      const testNotes = [
+        { id: '1', text: 'Hello World', category: 'tasks' },
+        { id: '2', text: 'Goodbye World', category: 'feelings' },
+        { id: '3', text: 'Something else', category: 'projects' }
+      ];
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(testNotes));
+    });
+
+    it('should find notes containing query', () => {
+      const results = storage.searchNotes('World');
+      expect(results).toHaveLength(2);
+    });
+
+    it('should be case-insensitive', () => {
+      const results = storage.searchNotes('world');
+      expect(results).toHaveLength(2);
+    });
+
+    it('should return all notes for empty query', () => {
+      const results = storage.searchNotes('');
+      expect(results).toHaveLength(3);
+    });
+
+    it('should return empty array when no matches', () => {
+      const results = storage.searchNotes('xyz');
+      expect(results).toEqual([]);
+    });
+  });
+
+  describe('validateImport', () => {
+    it('should accept valid notes array', () => {
+      const data = {
+        notes: [
+          { id: '1', text: 'Test', category: 'tasks' }
+        ]
+      };
+      
+      const result = storage.validateImport(data);
+      expect(result.valid).toBe(true);
+      expect(result.notes).toHaveLength(1);
+    });
+
+    it('should accept direct array format', () => {
+      const data = [
+        { id: '1', text: 'Test', category: 'tasks' }
+      ];
+      
+      const result = storage.validateImport(data);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject invalid category', () => {
+      const data = {
+        notes: [
+          { id: '1', text: 'Test', category: 'invalid-category' }
+        ]
+      };
+      
+      const result = storage.validateImport(data);
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('categoria inválida');
+    });
+
+    it('should reject missing id', () => {
+      const data = {
+        notes: [
+          { text: 'Test', category: 'tasks' }
+        ]
+      };
+      
+      const result = storage.validateImport(data);
+      expect(result.valid).toBe(false);
+    });
+
+    it('should reject missing text', () => {
+      const data = {
+        notes: [
+          { id: '1', category: 'tasks' }
+        ]
+      };
+      
+      const result = storage.validateImport(data);
+      expect(result.valid).toBe(false);
+    });
+
+    it('should reject null data', () => {
+      const result = storage.validateImport(null);
+      expect(result.valid).toBe(false);
+    });
+  });
+
+  describe('mergeImport', () => {
+    beforeEach(() => {
+      const existingNotes = [
+        { id: '1', text: 'Existing', category: 'tasks', updatedAt: '2024-01-01T00:00:00.000Z' }
+      ];
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(existingNotes));
+    });
+
+    it('should add new notes', () => {
+      const importData = {
+        notes: [
+          { id: '2', text: 'New note', category: 'tasks' }
+        ]
+      };
+      
+      const result = storage.mergeImport(importData);
+      
+      expect(result.success).toBe(true);
+      expect(result.imported).toBe(1);
+      expect(result.updated).toBe(0);
+    });
+
+    it('should update existing note if imported is newer', () => {
+      const importData = {
+        notes: [
+          { id: '1', text: 'Updated', category: 'tasks', updatedAt: '2024-12-31T00:00:00.000Z' }
+        ]
+      };
+      
+      const result = storage.mergeImport(importData);
+      
+      expect(result.success).toBe(true);
+      expect(result.updated).toBe(1);
+    });
+
+    it('should not update if existing is newer', () => {
+      const importData = {
+        notes: [
+          { id: '1', text: 'Old', category: 'tasks', updatedAt: '2020-01-01T00:00:00.000Z' }
+        ]
+      };
+      
+      const result = storage.mergeImport(importData);
+      
+      expect(result.success).toBe(true);
+      expect(result.updated).toBe(0);
+    });
+
+    it('should return error for invalid data', () => {
+      const result = storage.mergeImport({ notes: 'invalid' });
+      
+      expect(result.success).toBe(false);
+      expect(result.error).toBeTruthy();
+    });
+  });
+
+  describe('getCountsByCategory', () => {
+    beforeEach(() => {
+      const testNotes = [
+        { id: '1', text: 'A', category: 'tasks' },
+        { id: '2', text: 'B', category: 'tasks' },
+        { id: '3', text: 'C', category: 'feelings' }
+      ];
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(testNotes));
+    });
+
+    it('should count notes by category', () => {
+      const counts = storage.getCountsByCategory();
+      
+      expect(counts.tasks).toBe(2);
+      expect(counts.feelings).toBe(1);
+    });
+
+    it('should not include empty categories', () => {
+      const counts = storage.getCountsByCategory();
+      expect(counts.projects).toBeUndefined();
+    });
+  });
+
+  describe('exportNotes', () => {
+    it('should export notes as JSON string', () => {
+      const testNotes = [
+        { id: '1', text: 'Test', category: 'tasks' }
+      ];
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(testNotes));
+      
+      const exported = storage.exportNotes();
+      const parsed = JSON.parse(exported);
+      
+      expect(parsed).toHaveProperty('version', 1);
+      expect(parsed).toHaveProperty('exportedAt');
+      expect(parsed.notes).toHaveLength(1);
+    });
+  });
+});

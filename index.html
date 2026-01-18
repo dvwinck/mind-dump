@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Mind Dump - Bloco de notas para dump mental">
+  <meta name="theme-color" content="#0d6efd">
+  <title>Mind Dump</title>
+  
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  
+  <!-- App CSS -->
+  <link rel="stylesheet" href="styles/app.css">
+</head>
+<body>
+  <!-- Skip link for keyboard navigation -->
+  <a href="#main-content" class="skip-link">Pular para o conteúdo principal</a>
+  
+  <header class="bg-primary text-white py-3 mb-3" role="banner">
+    <div class="container-fluid">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h1 class="h4 mb-0">
+          <span aria-hidden="true">🧠</span> Mind Dump
+        </h1>
+        <div class="d-flex gap-2 flex-wrap">
+          <input 
+            type="search" 
+            id="search-input" 
+            class="form-control form-control-sm" 
+            placeholder="Buscar notas..." 
+            aria-label="Buscar notas"
+            style="width: 200px;"
+          >
+          <button id="btn-export" class="btn btn-sm btn-outline-light" aria-label="Exportar notas">
+            <span aria-hidden="true">📤</span> Exportar
+          </button>
+          <button id="btn-import" class="btn btn-sm btn-outline-light" aria-label="Importar notas">
+            <span aria-hidden="true">📥</span> Importar
+          </button>
+          <input type="file" id="import-file" accept=".json" class="d-none" aria-hidden="true">
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container-fluid pb-4">
+    <!-- Mobile: Tabs -->
+    <nav class="d-md-none mb-3">
+      <ul class="nav nav-pills nav-fill flex-nowrap overflow-auto" id="category-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active text-nowrap" id="tab-unclear" data-bs-toggle="tab" data-bs-target="#panel-unclear" type="button" role="tab" aria-controls="panel-unclear" aria-selected="true">
+            Pouca clareza
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link text-nowrap" id="tab-feelings" data-bs-toggle="tab" data-bs-target="#panel-feelings" type="button" role="tab" aria-controls="panel-feelings" aria-selected="false">
+            Sentimentos
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link text-nowrap" id="tab-projects" data-bs-toggle="tab" data-bs-target="#panel-projects" type="button" role="tab" aria-controls="panel-projects" aria-selected="false">
+            Projetos
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link text-nowrap" id="tab-desires" data-bs-toggle="tab" data-bs-target="#panel-desires" type="button" role="tab" aria-controls="panel-desires" aria-selected="false">
+            Desejos
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link text-nowrap" id="tab-tasks" data-bs-toggle="tab" data-bs-target="#panel-tasks" type="button" role="tab" aria-controls="panel-tasks" aria-selected="false">
+            Tarefas
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link text-nowrap" id="tab-not-do" data-bs-toggle="tab" data-bs-target="#panel-not-do" type="button" role="tab" aria-controls="panel-not-do" aria-selected="false">
+            Não fazer
+          </button>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Mobile: Tab Content -->
+    <div class="tab-content d-md-none" id="category-tab-content">
+      <div class="tab-pane fade show active" id="panel-unclear" role="tabpanel" aria-labelledby="tab-unclear">
+        <div class="category-column" data-category="unclear">
+          <div class="category-header">
+            <h2 class="h6 mb-0">Demandas com pouca clareza</h2>
+            <span class="badge bg-secondary note-count">0</span>
+          </div>
+          <div class="note-input-wrapper mb-2">
+            <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Demandas com pouca clareza"></textarea>
+          </div>
+          <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="panel-feelings" role="tabpanel" aria-labelledby="tab-feelings">
+        <div class="category-column" data-category="feelings">
+          <div class="category-header">
+            <h2 class="h6 mb-0">Sentimentos</h2>
+            <span class="badge bg-secondary note-count">0</span>
+          </div>
+          <div class="note-input-wrapper mb-2">
+            <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Sentimentos"></textarea>
+          </div>
+          <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects">
+        <div class="category-column" data-category="projects">
+          <div class="category-header">
+            <h2 class="h6 mb-0">Projetos</h2>
+            <span class="badge bg-secondary note-count">0</span>
+          </div>
+          <div class="note-input-wrapper mb-2">
+            <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Projetos"></textarea>
+          </div>
+          <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="panel-desires" role="tabpanel" aria-labelledby="tab-desires">
+        <div class="category-column" data-category="desires">
+          <div class="category-header">
+            <h2 class="h6 mb-0">Desejos</h2>
+            <span class="badge bg-secondary note-count">0</span>
+          </div>
+          <div class="note-input-wrapper mb-2">
+            <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Desejos"></textarea>
+          </div>
+          <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="panel-tasks" role="tabpanel" aria-labelledby="tab-tasks">
+        <div class="category-column" data-category="tasks">
+          <div class="category-header">
+            <h2 class="h6 mb-0">Tarefas</h2>
+            <span class="badge bg-secondary note-count">0</span>
+          </div>
+          <div class="note-input-wrapper mb-2">
+            <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Tarefas"></textarea>
+          </div>
+          <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="panel-not-do" role="tabpanel" aria-labelledby="tab-not-do">
+        <div class="category-column" data-category="not-do">
+          <div class="category-header">
+            <h2 class="h6 mb-0">Não fazer</h2>
+            <span class="badge bg-secondary note-count">0</span>
+          </div>
+          <div class="note-input-wrapper mb-2">
+            <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Não fazer"></textarea>
+          </div>
+          <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Desktop: Kanban Grid -->
+    <div class="d-none d-md-block">
+      <div class="row g-3 kanban-grid">
+        <!-- Coluna 1: Demandas com pouca clareza -->
+        <div class="col-lg-2 col-md-4">
+          <div class="category-column h-100" data-category="unclear">
+            <div class="category-header">
+              <h2 class="h6 mb-0">Demandas com pouca clareza</h2>
+              <span class="badge bg-secondary note-count">0</span>
+            </div>
+            <div class="note-input-wrapper mb-2">
+              <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Demandas com pouca clareza"></textarea>
+            </div>
+            <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+          </div>
+        </div>
+        
+        <!-- Coluna 2: Sentimentos -->
+        <div class="col-lg-2 col-md-4">
+          <div class="category-column h-100" data-category="feelings">
+            <div class="category-header">
+              <h2 class="h6 mb-0">Sentimentos</h2>
+              <span class="badge bg-secondary note-count">0</span>
+            </div>
+            <div class="note-input-wrapper mb-2">
+              <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Sentimentos"></textarea>
+            </div>
+            <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+          </div>
+        </div>
+        
+        <!-- Coluna 3: Projetos -->
+        <div class="col-lg-2 col-md-4">
+          <div class="category-column h-100" data-category="projects">
+            <div class="category-header">
+              <h2 class="h6 mb-0">Projetos</h2>
+              <span class="badge bg-secondary note-count">0</span>
+            </div>
+            <div class="note-input-wrapper mb-2">
+              <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Projetos"></textarea>
+            </div>
+            <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+          </div>
+        </div>
+        
+        <!-- Coluna 4: Desejos -->
+        <div class="col-lg-2 col-md-4">
+          <div class="category-column h-100" data-category="desires">
+            <div class="category-header">
+              <h2 class="h6 mb-0">Desejos</h2>
+              <span class="badge bg-secondary note-count">0</span>
+            </div>
+            <div class="note-input-wrapper mb-2">
+              <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Desejos"></textarea>
+            </div>
+            <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+          </div>
+        </div>
+        
+        <!-- Coluna 5: Tarefas -->
+        <div class="col-lg-2 col-md-4">
+          <div class="category-column h-100" data-category="tasks">
+            <div class="category-header">
+              <h2 class="h6 mb-0">Tarefas</h2>
+              <span class="badge bg-secondary note-count">0</span>
+            </div>
+            <div class="note-input-wrapper mb-2">
+              <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Tarefas"></textarea>
+            </div>
+            <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+          </div>
+        </div>
+        
+        <!-- Coluna 6: Não fazer -->
+        <div class="col-lg-2 col-md-4">
+          <div class="category-column h-100" data-category="not-do">
+            <div class="category-header">
+              <h2 class="h6 mb-0">Não fazer</h2>
+              <span class="badge bg-secondary note-count">0</span>
+            </div>
+            <div class="note-input-wrapper mb-2">
+              <textarea class="form-control note-input" placeholder="Nova nota... (Enter para salvar)" rows="2" aria-label="Criar nota em Não fazer"></textarea>
+            </div>
+            <div class="notes-list" role="list" aria-label="Lista de notas"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal de edição -->
+  <div class="modal fade" id="edit-modal" tabindex="-1" aria-labelledby="edit-modal-label" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="edit-modal-label">Editar Nota</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <textarea id="edit-note-text" class="form-control" rows="4" aria-label="Texto da nota"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btn-save-edit">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de confirmação de exclusão -->
+  <div class="modal fade" id="delete-modal" tabindex="-1" aria-labelledby="delete-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="delete-modal-label">Excluir Nota</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p>Tem certeza que deseja excluir esta nota?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="btn-confirm-delete">Excluir</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+  
+  <!-- App JS -->
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
