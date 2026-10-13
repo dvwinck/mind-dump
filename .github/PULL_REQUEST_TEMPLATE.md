@@ -8,7 +8,8 @@
 
 ## Checklist
 
-- [ ] `npm test` passa localmente
+- [ ] `npm test`, `npm run lint` e `npm run format:check` passam localmente
+- [ ] Título do PR no formato Conventional Commits (ex.: `fix: corrige importação de JSON`)
 - [ ] Testes adicionados ou atualizados para a mudança
 - [ ] Se mudou arquivo em cache: `CACHE_NAME` trocado em `service-worker.js`
 - [ ] Se criou arquivo novo: incluído em `ASSETS_TO_CACHE`
