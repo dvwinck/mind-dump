@@ -10,16 +10,18 @@ const bodyHtml = indexHtml
   .match(/<body[^>]*>([\s\S]*)<\/body>/)[1]
   .replace(/<script[\s\S]*?<\/script>/g, '');
 
+const hideCalls = [];
 class FakeModal {
   constructor(el) { this.el = el; }
   show() { this.shown = true; }
-  hide() { this.shown = false; }
+  hide() { this.shown = false; hideCalls.push(this.el.id); }
 }
 
 let ui;
 let storage;
 
 async function boot() {
+  hideCalls.length = 0;
   document.body.innerHTML = bodyHtml;
   globalThis.bootstrap = { Modal: FakeModal };
   vi.resetModules();
@@ -34,12 +36,22 @@ const columns = (id) => document.querySelectorAll(`.category-column[data-categor
 const cardIn = (column, noteId) =>
   [...column.querySelectorAll('.note-card')].find((c) => c.dataset.noteId === noteId);
 
+// Each boot() registers a window 'storage' listener; track and remove them so a test only
+// sees the listener of its own module instance (otherwise leftovers mask a missing listener).
+const storageListeners = [];
+
 beforeEach(async () => {
   localStorage.clear();
+  const add = window.addEventListener.bind(window);
+  vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+    if (type === 'storage') storageListeners.push(listener);
+    return add(type, listener, options);
+  });
   await boot();
 });
 
 afterEach(() => {
+  storageListeners.splice(0).forEach((listener) => window.removeEventListener('storage', listener));
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
@@ -227,5 +239,76 @@ describe('cross-tab sync', () => {
     localStorage.setItem('mind-dump-notes', JSON.stringify([external]));
     window.dispatchEvent(new StorageEvent('storage', { key: 'something-else' }));
     expect(document.querySelectorAll('.note-card')).toHaveLength(0);
+  });
+});
+
+describe('data safety in the UI', () => {
+  it('keeps what the user typed when the note could not be saved', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    const input = columns('tasks')[0].querySelector('.note-input');
+    input.value = 'do not lose me';
+    press(input, 'Enter');
+
+    expect(input.value).toBe('do not lose me');
+    expect(storage.loadAll()).toHaveLength(0);
+  });
+
+  it('keeps the edit modal open when saving the edit fails', () => {
+    const n = storage.createNote('old', 'tasks');
+    ui.renderAllCategories();
+    cardIn(columns('tasks')[1], n.id).querySelector('[data-action="edit"]').click();
+    const textarea = document.getElementById('edit-note-text');
+    textarea.value = 'new';
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    document.getElementById('btn-save-edit').click();
+
+    expect(hideCalls).not.toContain('edit-modal');
+    expect(textarea.value).toBe('new');
+  });
+
+  it('tells the user when the note was removed in another tab', () => {
+    const n = storage.createNote('old', 'tasks');
+    ui.renderAllCategories();
+    cardIn(columns('tasks')[1], n.id).querySelector('[data-action="edit"]').click();
+    document.getElementById('edit-note-text').value = 'new';
+
+    storage.deleteNote(n.id); // "another tab" deleted it meanwhile
+    document.getElementById('btn-save-edit').click();
+
+    expect(hideCalls).toContain('edit-modal');
+    expect(document.querySelector('#toast-container .toast').textContent).toMatch(/não existe mais/i);
+  });
+
+  it('shows a single honest warning when storage is blocked', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    await boot();
+
+    const toasts = document.querySelectorAll('#toast-container .toast');
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0].textContent).not.toMatch(/cópia/i);
+  });
+
+  it('does not pile up backups of the same unreadable data', async () => {
+    localStorage.setItem('mind-dump-notes', '{corrupt-twice');
+    await boot();
+    await boot();
+
+    const backups = Object.keys(localStorage).filter((k) => k.startsWith('mind-dump-notes.corrupt-'));
+    expect(backups).toHaveLength(1);
+  });
+
+  it('ignores the Enter that commits an IME composition (Safari reports keyCode 229)', () => {
+    const input = columns('tasks')[0].querySelector('.note-input');
+    input.value = 'かな';
+    press(input, 'Enter', { keyCode: 229 });
+    expect(storage.loadAll()).toHaveLength(0);
+    expect(input.value).toBe('かな');
   });
 });

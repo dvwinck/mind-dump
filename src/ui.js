@@ -28,11 +28,8 @@ export function init() {
   editTextarea = document.getElementById('edit-note-text');
 
   // Surface storage problems instead of failing silently
-  storage.setErrorHandler(({ type }) => {
-    const message = type === 'save'
-      ? 'Não foi possível salvar. O armazenamento do navegador pode estar cheio ou bloqueado: exporte um backup.'
-      : 'Não foi possível ler as notas salvas. Uma cópia do conteúdo foi mantida no armazenamento do navegador.';
-    showToast(message, { variant: 'danger', timeout: 10000 });
+  storage.setErrorHandler((problem) => {
+    showToast(storageProblemMessage(problem), { variant: 'danger', timeout: 10000 });
   });
 
   // Setup event listeners
@@ -54,22 +51,39 @@ export function init() {
   console.log('📝 UI initialized');
 }
 
+function storageProblemMessage({ type, blocked, backedUp, blockedByBackup }) {
+  if (type === 'save') {
+    return blockedByBackup
+      ? 'Não foi possível guardar uma cópia das notas ilegíveis. Para não apagá-las, novas notas não serão salvas até liberar espaço.'
+      : 'Não foi possível salvar. O armazenamento do navegador pode estar cheio ou bloqueado: exporte um backup.';
+  }
+  if (blocked) {
+    return 'Não foi possível acessar o armazenamento do navegador (ele pode estar bloqueado). Suas notas não serão salvas.';
+  }
+  return backedUp
+    ? 'Não foi possível ler as notas salvas. Uma cópia do conteúdo foi mantida no armazenamento do navegador.'
+    : 'Não foi possível ler as notas salvas nem guardar uma cópia. Para não apagá-las, novas notas não serão salvas até liberar espaço.';
+}
+
 /**
  * Setup note input fields (Enter to create)
  */
 function setupNoteInputs() {
   document.querySelectorAll('.note-input').forEach(input => {
     input.addEventListener('keydown', (e) => {
-      // Enter (without Shift) creates the note
-      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      // Enter (without Shift) creates the note. keyCode 229 is how Safari reports the Enter
+      // that commits an IME composition (isComposing is already false by then).
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
         e.preventDefault();
         const category = input.closest('.category-column').dataset.category;
         const text = input.value.trim();
 
         if (text) {
-          storage.createNote(text, category);
-          input.value = '';
-          renderCategory(category);
+          // Only clear the field once the note is really stored
+          if (storage.createNote(text, category)) {
+            input.value = '';
+            renderCategory(category);
+          }
         }
       }
     });
@@ -99,9 +113,15 @@ function setupModals() {
   // Edit modal - save button
   document.getElementById('btn-save-edit').addEventListener('click', () => {
     if (editingNoteId && editTextarea.value.trim()) {
-      storage.updateNote(editingNoteId, { text: editTextarea.value.trim() });
-      editModal.hide();
-      renderAllCategories();
+      if (storage.updateNote(editingNoteId, { text: editTextarea.value.trim() })) {
+        editModal.hide();
+        renderAllCategories();
+      } else if (!storage.loadAll().some(n => n.id === editingNoteId)) {
+        // The note is gone (e.g. deleted in another tab); a failed save keeps the modal open instead
+        showToast('Esta nota não existe mais: ela foi removida em outra aba.', { variant: 'warning' });
+        editModal.hide();
+        renderAllCategories();
+      }
     }
   });
 

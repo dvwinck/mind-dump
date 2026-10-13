@@ -8,27 +8,72 @@ import { CATEGORY_IDS } from './categories.js';
 export const STORAGE_KEY = 'mind-dump-notes';
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
+const BACKUP_PREFIX = `${STORAGE_KEY}.corrupt-`;
+const BLOCKED = Symbol('storage blocked');
+
 let errorHandler = null;
+// What loadAll last reported (the unreadable text, or BLOCKED), so a problem is reported once.
 let reportedUnreadable = null;
+// Unreadable text we could NOT copy aside: saves must not overwrite it while it is the only copy.
+let unbackedUnreadable = null;
 
 /**
- * Register a callback for storage problems: fn({ type: 'load' | 'save', error }).
+ * Register a callback for storage problems:
+ *   fn({ type: 'load', error, blocked, backedUp })  - stored notes could not be read
+ *   fn({ type: 'save', error, blockedByBackup? })   - a save did not happen
  */
 export function setErrorHandler(fn) {
   errorHandler = fn;
 }
 
-function reportError(type, error) {
+function reportError(type, error, details = {}) {
   console.error(`Storage ${type} error:`, error);
-  if (errorHandler) errorHandler({ type, error });
+  if (errorHandler) errorHandler({ type, error, ...details });
 }
 
-function backupUnreadable(raw) {
+function hasBackup(raw) {
   try {
-    localStorage.setItem(`${STORAGE_KEY}.corrupt-${Date.now()}`, raw);
+    if (typeof localStorage.length !== 'number') return false;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(BACKUP_PREFIX) && localStorage.getItem(key) === raw) return true;
+    }
+  } catch (error) {
+    console.error('Could not look for existing backups:', error);
+  }
+  return false;
+}
+
+/**
+ * Copy unreadable text aside (unless an identical copy already exists).
+ * @returns {boolean} true if a copy exists afterwards
+ */
+function backupUnreadable(raw) {
+  if (hasBackup(raw)) return true;
+  try {
+    localStorage.setItem(`${BACKUP_PREFIX}${Date.now()}`, raw);
+    return true;
   } catch (error) {
     console.error('Could not back up unreadable notes:', error);
+    return false;
   }
+}
+
+/**
+ * True while the stored text is unreadable and still has no backup: writing now would destroy it.
+ * Retries the backup first, since space may have been freed.
+ */
+function mustKeepUnreadable() {
+  if (unbackedUnreadable === null) return false;
+  if (localStorage.getItem(STORAGE_KEY) !== unbackedUnreadable) {
+    unbackedUnreadable = null;
+    return false;
+  }
+  if (backupUnreadable(unbackedUnreadable)) {
+    unbackedUnreadable = null;
+    return false;
+  }
+  return true;
 }
 
 function isValidDate(value) {
@@ -63,10 +108,12 @@ export function loadAll() {
     if (!Array.isArray(data)) throw new Error('Stored notes are not an array');
     return data;
   } catch (error) {
-    if (raw === null || raw !== reportedUnreadable) {
-      reportedUnreadable = raw;
-      if (raw) backupUnreadable(raw);
-      reportError('load', error);
+    const signature = raw === null ? BLOCKED : raw;
+    if (signature !== reportedUnreadable) {
+      reportedUnreadable = signature;
+      const backedUp = raw ? backupUnreadable(raw) : false;
+      unbackedUnreadable = raw && !backedUp ? raw : null;
+      reportError('load', error, { blocked: raw === null, backedUp });
     }
     return [];
   }
@@ -79,11 +126,14 @@ export function loadAll() {
  */
 export function saveAll(notes) {
   try {
+    if (mustKeepUnreadable()) {
+      throw new Error('Refusing to overwrite unreadable notes that have no backup');
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
     reportedUnreadable = null;
     return true;
   } catch (error) {
-    reportError('save', error);
+    reportError('save', error, unbackedUnreadable !== null ? { blockedByBackup: true } : {});
     return false;
   }
 }
@@ -93,7 +143,7 @@ export function saveAll(notes) {
  * @param {string} text - Note text
  * @param {string} category - Category ID
  * @param {boolean} pinned - Whether note is pinned
- * @returns {Object} The created note
+ * @returns {Object|null} The created note, or null if it could not be saved
  */
 export function createNote(text, category, pinned = false) {
   const notes = loadAll();
@@ -109,16 +159,14 @@ export function createNote(text, category, pinned = false) {
   };
   
   notes.push(note);
-  saveAll(notes);
-  
-  return note;
+  return saveAll(notes) ? note : null;
 }
 
 /**
  * Update an existing note
  * @param {string} id - Note ID
  * @param {Object} updates - Fields to update
- * @returns {Object|null} Updated note or null if not found
+ * @returns {Object|null} Updated note, or null if not found or not saved
  */
 export function updateNote(id, updates) {
   const notes = loadAll();
@@ -134,14 +182,13 @@ export function updateNote(id, updates) {
     updatedAt: now()
   };
   
-  saveAll(notes);
-  return notes[index];
+  return saveAll(notes) ? notes[index] : null;
 }
 
 /**
  * Delete a note
  * @param {string} id - Note ID
- * @returns {boolean} True if deleted, false if not found
+ * @returns {boolean} True if deleted, false if not found or the change could not be saved
  */
 export function deleteNote(id) {
   const notes = loadAll();
@@ -152,8 +199,7 @@ export function deleteNote(id) {
   }
   
   notes.splice(index, 1);
-  saveAll(notes);
-  return true;
+  return saveAll(notes);
 }
 
 /**
@@ -319,8 +365,10 @@ export function mergeImport(importData) {
     }
   }
   
-  saveAll(existingNotes);
-  
+  if (!saveAll(existingNotes)) {
+    return { success: false, imported: 0, updated: 0, error: 'Não foi possível salvar as notas importadas.' };
+  }
+
   return { success: true, imported, updated };
 }
 

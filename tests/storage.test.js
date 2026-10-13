@@ -531,3 +531,80 @@ describe('storage durability', () => {
     expect(storage.STORAGE_KEY).toBe('mind-dump-notes');
   });
 });
+
+describe('storage failures are not misreported or silently lossy', () => {
+  beforeEach(() => {
+    resetMockStorage();
+    storage.setErrorHandler(null);
+    storage.saveAll([]); // success path clears the module's "already reported" state
+    vi.clearAllMocks();
+  });
+
+  it('reports blocked storage once, without claiming a backup', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.getItem.mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    storage.loadAll();
+    storage.loadAll();
+    storage.loadAll();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'load', blocked: true, backedUp: false }));
+  });
+
+  it('says a backup exists only when it was really written', () => {
+    localStorageMock.setItem('mind-dump-notes', '{unbacked-1');
+    localStorageMock.setItem.mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+
+    storage.loadAll();
+
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'load', blocked: false, backedUp: false }));
+  });
+
+  it('refuses to overwrite unreadable data it could not back up, then recovers', () => {
+    localStorageMock.setItem('mind-dump-notes', '{unbacked-2');
+    const real = localStorageMock.setItem.getMockImplementation();
+    localStorageMock.setItem.mockImplementation((key, value) => {
+      if (key.startsWith('mind-dump-notes.corrupt-')) throw new Error('QuotaExceededError');
+      return real(key, value);
+    });
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+
+    expect(storage.loadAll()).toEqual([]);
+    expect(storage.createNote('hello', 'tasks')).toBeNull();
+    expect(localStorageMock.getItem('mind-dump-notes')).toBe('{unbacked-2');
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', blockedByBackup: true }));
+
+    // Once the copy can be written, the save goes through and the copy exists first.
+    const written = [];
+    localStorageMock.setItem.mockImplementation((key, value) => {
+      written.push(key);
+      return real(key, value);
+    });
+    expect(storage.createNote('hello', 'tasks')).not.toBeNull();
+    expect(written.some((key) => key.startsWith('mind-dump-notes.corrupt-'))).toBe(true);
+  });
+
+  it('returns null/false and stores nothing when a save fails', () => {
+    const note = storage.createNote('a', 'tasks');
+    expect(note).not.toBeNull();
+    localStorageMock.setItem.mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+
+    expect(storage.createNote('b', 'tasks')).toBeNull();
+    expect(storage.updateNote(note.id, { text: 'x' })).toBeNull();
+    expect(storage.deleteNote(note.id)).toBe(false);
+    expect(storage.mergeImport([{ id: 'zz1', text: 't', category: 'tasks' }])).toEqual(
+      expect.objectContaining({ success: false, imported: 0 })
+    );
+    expect(storage.loadAll()).toHaveLength(1);
+  });
+});

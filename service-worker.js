@@ -1,10 +1,13 @@
 /**
  * Mind Dump - Service Worker
- * Cache-first strategy for offline support.
+ * Cache-first strategy for offline support. A version is one atomic cache:
+ * everything in ASSETS_TO_CACHE is fetched together at install and served as-is until the
+ * page accepts the next version (no per-file background refresh, so HTML and modules never mix
+ * versions).
  *
  * Every file the app needs offline must be listed in ASSETS_TO_CACHE
- * (tests/service-worker.test.js enforces this). Bump CACHE_NAME on every
- * release that changes a cached file; otherwise returning users keep stale assets.
+ * (tests/service-worker.test.js enforces this). Bump CACHE_NAME on every release that changes
+ * a cached file: that is what makes the browser install a new version and the page offer it.
  * Paths are relative so the app also works when served from a sub-path.
  */
 
@@ -72,26 +75,14 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      caches.match('./index.html').then((cached) => {
-        if (cached) {
-          revalidate(request);
-          return cached;
-        }
-        return fetchAndCache(request);
-      })
+      caches.match('./index.html').then((cached) => cached || fetchAndCache(request))
     );
     return;
   }
 
   event.respondWith(
     caches.match(request)
-      .then((cached) => {
-        if (cached) {
-          if (isLocalAsset(new URL(request.url))) revalidate(request);
-          return cached;
-        }
-        return fetchAndCache(request);
-      })
+      .then((cached) => cached || fetchAndCache(request))
       .catch(() => {
         if (request.destination === 'image') {
           return new Response(
@@ -104,15 +95,8 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-function isLocalAsset(url) {
-  return url.origin === self.location.origin;
-}
-
-// Background refresh must never surface an error (we are usually offline when it fails)
-function revalidate(request) {
-  return fetchAndCache(request).catch(() => {});
-}
-
+// Only reached for URLs that are not part of the precached version (the precache always wins),
+// so an active cache never has individual files swapped under a running page.
 function fetchAndCache(request) {
   return fetch(request).then((response) => {
     if (!response || response.status !== 200) return response;
