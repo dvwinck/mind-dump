@@ -145,3 +145,42 @@ describe('search', () => {
     expect(text.innerHTML).toBe('R&amp;D &lt;plan&gt; s<mark>amp</mark>le');
   });
 });
+
+describe('keyboard behavior', () => {
+  it('ignores Enter while an IME composition is active', () => {
+    const input = columns('tasks')[0].querySelector('.note-input');
+    input.value = 'caf';
+    press(input, 'Enter', { isComposing: true });
+    expect(storage.loadAll()).toHaveLength(0);
+    expect(input.value).toBe('caf');
+  });
+
+  it('keeps focus on the same action after pinning', () => {
+    const n = storage.createNote('a', 'tasks');
+    ui.renderAllCategories();
+    const column = columns('tasks')[1];
+    const pin = cardIn(column, n.id).querySelector('[data-action="pin"]');
+
+    pin.focus();
+    expect(document.activeElement).toBe(pin);
+    pin.click();
+
+    const active = document.activeElement;
+    expect(active).not.toBe(pin); // the old node was replaced by the re-render
+    expect(active.dataset.action).toBe('pin');
+    expect(column.contains(active)).toBe(true);
+    expect(active.closest('.note-card').dataset.noteId).toBe(n.id);
+  });
+
+  it('moves focus to the column input when the focused note leaves the column', () => {
+    const n = storage.createNote('a', 'tasks');
+    ui.renderAllCategories();
+    const column = columns('tasks')[1];
+    const item = cardIn(column, n.id).querySelector('[data-action="move"][data-category="projects"]');
+
+    item.focus();
+    item.click();
+
+    expect(document.activeElement).toBe(column.querySelector('.note-input'));
+  });
+});

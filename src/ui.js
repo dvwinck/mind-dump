@@ -12,6 +12,7 @@ let currentSearchQuery = '';
 let editingNoteId = null;
 let deleteNoteId = null;
 let draggedNoteId = null;
+let modalOpener = null;
 
 // DOM Elements
 let editModal, deleteModal, editTextarea;
@@ -46,7 +47,7 @@ function setupNoteInputs() {
   document.querySelectorAll('.note-input').forEach(input => {
     input.addEventListener('keydown', (e) => {
       // Enter (without Shift) creates the note
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         const category = input.closest('.category-column').dataset.category;
         const text = input.value.trim();
@@ -106,6 +107,12 @@ function setupModals() {
       renderAllCategories();
     }
   });
+
+  // Focus the textarea only once the modal is visible, and give focus back when it closes
+  const editEl = document.getElementById('edit-modal');
+  editEl.addEventListener('shown.bs.modal', () => editTextarea.focus());
+  editEl.addEventListener('hidden.bs.modal', () => restoreFocus(modalOpener));
+  document.getElementById('delete-modal').addEventListener('hidden.bs.modal', () => restoreFocus(modalOpener));
 }
 
 /**
@@ -295,8 +302,8 @@ export function editNote(noteId) {
   if (note) {
     editingNoteId = noteId;
     editTextarea.value = note.text;
+    modalOpener = captureFocus();
     editModal.show();
-    editTextarea.focus();
   }
 }
 
@@ -305,6 +312,7 @@ export function editNote(noteId) {
  */
 export function confirmDelete(noteId) {
   deleteNoteId = noteId;
+  modalOpener = captureFocus();
   deleteModal.show();
 }
 
@@ -313,7 +321,7 @@ export function confirmDelete(noteId) {
  */
 export function togglePin(noteId) {
   storage.togglePinned(noteId);
-  renderAllCategories();
+  rerender();
 }
 
 /**
@@ -321,5 +329,36 @@ export function togglePin(noteId) {
  */
 export function moveNote(noteId, newCategory) {
   storage.moveNote(noteId, newCategory);
+  rerender();
+}
+
+/**
+ * Remember which note action had keyboard focus. Cards are rebuilt via
+ * innerHTML, so without this the focus would drop to <body> after every action.
+ */
+function captureFocus() {
+  const active = document.activeElement;
+  const card = active && active.closest ? active.closest('.note-card') : null;
+  if (!card) return null;
+  return {
+    column: card.closest('.category-column'),
+    noteId: card.dataset.noteId,
+    action: active.dataset.action || null
+  };
+}
+
+function restoreFocus(saved) {
+  if (!saved || !saved.column) return;
+  const card = [...saved.column.querySelectorAll('.note-card')]
+    .find(c => c.dataset.noteId === saved.noteId);
+  const target = (card && saved.action && card.querySelector(`[data-action="${saved.action}"]`))
+    || card
+    || saved.column.querySelector('.note-input');
+  if (target) target.focus();
+}
+
+function rerender() {
+  const saved = captureFocus();
   renderAllCategories();
+  restoreFocus(saved);
 }
