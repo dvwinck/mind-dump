@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -28,10 +28,39 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Formatação
+        run: npm run format:check
+      - name: Testes com cobertura
+        run: npm run test:coverage
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Testes E2E
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
   checks:
-    name: Auditoria e validacao
+    name: Auditoria e validação
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -40,12 +69,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # O app nao tem dependencias de producao: este passo bloqueia se alguma for adicionada com falha high+.
-      - name: Auditar dependencias de producao (high+)
-        run: npm audit --omit=dev --audit-level=high
-      # Dependencias de desenvolvimento (vitest/vite) ainda tem avisos abertos: reporta sem bloquear ate atualizar o lockfile.
-      - name: Auditar dependencias de desenvolvimento (informativo)
-        continue-on-error: true
+      - run: npm ci
+      - name: Auditar dependências (high+)
         run: npm audit --audit-level=high
       - name: Validar manifest.json
         run: node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8'))"
