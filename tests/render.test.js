@@ -55,7 +55,18 @@ describe('formatDate', () => {
     expect(formatDate('2026-06-13T12:00:00Z', now)).toBe('2d');
   });
   it('shows dd/mm for older dates', () => {
-    expect(formatDate('2026-01-02T12:00:00Z', now)).toMatch(/^\d{2}\/\d{2}$/);
+    expect(formatDate('2026-01-02T12:00:00Z', now)).toBe('02/01');
+  });
+  it('switches unit exactly at each threshold', () => {
+    const at = (ms) => formatDate(new Date(now.getTime() - ms).toISOString(), now);
+    expect(at(59999)).toBe('agora');
+    expect(at(60000)).toBe('1min');
+    expect(at(3599999)).toBe('59min');
+    expect(at(3600000)).toBe('1h');
+    expect(at(86399999)).toBe('23h');
+    expect(at(86400000)).toBe('1d');
+    expect(at(604799999)).toBe('6d');
+    expect(at(604800000)).toMatch(/^\d{2}\/\d{2}$/);
   });
 });
 
@@ -96,5 +107,19 @@ describe('renderNoteCard', () => {
     expect(root.querySelector('[data-action="edit"]')).not.toBeNull();
     expect(root.querySelector('[data-action="delete"]')).not.toBeNull();
     expect(root.querySelector('.note-card').classList.contains('pinned')).toBe(true);
+  });
+
+  it('keeps quotes in the text from breaking out of the aria-label', () => {
+    const root = mount(renderNoteCard(note({ text: '" onfocus="alert(1)' }), CATEGORIES));
+    expect(hasInlineHandler(root)).toBe(false);
+    expect(root.querySelector('.note-card').getAttribute('aria-label')).toBe('Nota: " onfocus="alert(1)');
+  });
+
+  it('shows the unpinned state', () => {
+    const root = mount(renderNoteCard(note({ pinned: false }), CATEGORIES));
+    const pin = root.querySelector('[data-action="pin"]');
+    expect(pin.getAttribute('aria-label')).toBe('Fixar nota');
+    expect(pin.textContent.trim()).toBe('☆');
+    expect(root.querySelector('.note-card').classList.contains('pinned')).toBe(false);
   });
 });

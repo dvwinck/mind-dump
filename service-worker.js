@@ -25,6 +25,7 @@ const ASSETS_TO_CACHE = [
   './src/storage.js',
   './src/toast.js',
   './src/ui.js',
+  './src/update-flow.js',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];
@@ -67,7 +68,13 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: cache-first, refreshed in the background
+// Look only in THIS version's cache: a global caches.match() also searches other versions
+// (e.g. a newer one that is installed but still waiting) and could mix their files into this page.
+function matchActive(request) {
+  return caches.open(CACHE_NAME).then((cache) => cache.match(request));
+}
+
+// Fetch: cache-first, no background refresh (a new version arrives through the update flow)
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
@@ -75,13 +82,13 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      caches.match('./index.html').then((cached) => cached || fetchAndCache(request))
+      matchActive('./index.html').then((cached) => cached || fetchAndCache(request))
     );
     return;
   }
 
   event.respondWith(
-    caches.match(request)
+    matchActive(request)
       .then((cached) => cached || fetchAndCache(request))
       .catch(() => {
         if (request.destination === 'image') {
@@ -113,7 +120,7 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 
-  if (event.data && event.data.type === 'GET_VERSION') {
+  if (event.data && event.data.type === 'GET_VERSION' && event.ports && event.ports[0]) {
     event.ports[0].postMessage({ version: CACHE_NAME });
   }
 });

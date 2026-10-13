@@ -608,3 +608,70 @@ describe('storage failures are not misreported or silently lossy', () => {
     expect(storage.loadAll()).toHaveLength(1);
   });
 });
+
+describe('storage follow-ups from the independent review', () => {
+  beforeEach(() => {
+    resetMockStorage();
+    storage.setErrorHandler(null);
+    storage.saveAll([]);
+    vi.clearAllMocks();
+  });
+
+  it('keeps the existing createdAt when an import replaces a note that lacks one', () => {
+    const note = storage.createNote('a', 'tasks');
+    storage.mergeImport([{ id: note.id, text: 'b', category: 'tasks', updatedAt: '2999-01-01T00:00:00.000Z' }]);
+    const stored = storage.loadAll()[0];
+    expect(stored.text).toBe('b');
+    expect(stored.createdAt).toBe(note.createdAt);
+  });
+
+  it('accepts a 64-character id', () => {
+    expect(storage.validateImport([{ id: 'a'.repeat(64), text: 't', category: 'tasks' }]).valid).toBe(true);
+  });
+
+  it('says the copy exists when the backup was written', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.setItem('mind-dump-notes', '{backed-up-ok');
+    storage.loadAll();
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'load', blocked: false, backedUp: true }));
+  });
+
+  it('reports the same unreadable text again after a successful save in between', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.setItem('mind-dump-notes', '{again');
+    storage.loadAll();
+    storage.loadAll();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(storage.saveAll([])).toBe(true);
+    localStorageMock.setItem('mind-dump-notes', '{again');
+    storage.loadAll();
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it('isReadable tells readable storage from corrupt or blocked storage', () => {
+    expect(storage.isReadable()).toBe(true);
+    localStorageMock.setItem('mind-dump-notes', '{nope');
+    expect(storage.isReadable()).toBe(false);
+    localStorageMock.setItem('mind-dump-notes', '[]');
+    expect(storage.isReadable()).toBe(true);
+    localStorageMock.getItem.mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    expect(storage.isReadable()).toBe(false);
+  });
+
+  it('writes each backup under a distinct key even within the same millisecond', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
+    localStorageMock.setItem('mind-dump-notes', '{first');
+    storage.loadAll();
+    localStorageMock.setItem('mind-dump-notes', '{second');
+    storage.loadAll();
+    const keys = localStorageMock.setItem.mock.calls
+      .map(([key]) => key)
+      .filter((key) => key.startsWith('mind-dump-notes.corrupt-'));
+    expect(new Set(keys).size).toBe(2);
+    vi.restoreAllMocks();
+  });
+});

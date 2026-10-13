@@ -14,16 +14,30 @@ describe('categories', () => {
     expect(CATEGORIES.map((c) => c.id)).toEqual(CATEGORY_IDS);
   });
 
-  it('index.html has exactly one mobile and one desktop column per category', () => {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  it('index.html has exactly one column per category in each of the mobile and desktop layouts', () => {
+    const mobile = doc.querySelector('.tab-content');
+    const desktop = doc.querySelector('.d-none.d-md-block');
+    expect(mobile).not.toBeNull();
+    expect(desktop).not.toBeNull();
     for (const id of CATEGORY_IDS) {
-      const count = html.split(`data-category="${id}"`).length - 1;
-      expect(count, id).toBe(2);
+      expect(mobile.querySelectorAll(`.category-column[data-category="${id}"]`), `mobile ${id}`).toHaveLength(1);
+      expect(desktop.querySelectorAll(`.category-column[data-category="${id}"]`), `desktop ${id}`).toHaveLength(1);
+    }
+  });
+
+  it('index.html has a mobile tab button and tab pane per category', () => {
+    for (const id of CATEGORY_IDS) {
+      expect(doc.getElementById(`tab-${id}`), `tab-${id}`).not.toBeNull();
+      expect(doc.getElementById(`panel-${id}`), `panel-${id}`).not.toBeNull();
     }
   });
 
   it('index.html has no column for an unknown category', () => {
-    const ids = [...html.matchAll(/class="category-column[^"]*" data-category="([^"]+)"/g)].map((m) => m[1]);
-    expect(ids).toHaveLength(CATEGORY_IDS.length * 2);
-    expect(ids.every((id) => CATEGORY_IDS.includes(id))).toBe(true);
+    const unknown = [...doc.querySelectorAll('.category-column')]
+      .map((el) => el.dataset.category)
+      .filter((id) => !CATEGORY_IDS.includes(id));
+    expect(unknown).toEqual([]);
   });
 });

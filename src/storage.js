@@ -51,7 +51,8 @@ function hasBackup(raw) {
 function backupUnreadable(raw) {
   if (hasBackup(raw)) return true;
   try {
-    localStorage.setItem(`${BACKUP_PREFIX}${Date.now()}`, raw);
+    // Random suffix: two different unreadable payloads in the same millisecond must not share a key
+    localStorage.setItem(`${BACKUP_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, raw);
     return true;
   } catch (error) {
     console.error('Could not back up unreadable notes:', error);
@@ -116,6 +117,20 @@ export function loadAll() {
       reportError('load', error, { blocked: raw === null, backedUp });
     }
     return [];
+  }
+}
+
+/**
+ * Whether stored notes can be read at all. loadAll() returns [] both for "no notes" and for
+ * "unreadable", so callers that must tell them apart (e.g. "was this note deleted elsewhere?") ask here.
+ * @returns {boolean}
+ */
+export function isReadable() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return !raw || Array.isArray(JSON.parse(raw));
+  } catch (error) {
+    return false;
   }
 }
 
@@ -358,7 +373,8 @@ export function mergeImport(importData) {
       if (importDate > existingDate) {
         existingNotes[existingIndex] = {
           ...importNote,
-          pinned: importNote.pinned || false
+          pinned: importNote.pinned || false,
+          createdAt: importNote.createdAt || existing.createdAt || now()
         };
         updated++;
       }

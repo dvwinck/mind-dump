@@ -6,6 +6,7 @@
 import * as ui from './ui.js';
 import { CATEGORIES } from './categories.js';
 import { showToast } from './toast.js';
+import { controllerChangeAction } from './update-flow.js';
 
 // App initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,10 +28,27 @@ if ('serviceWorker' in navigator) {
   let updateRequested = false;
   let reloading = false;
 
+  // Text typed but not saved yet: the new-note fields, or the edit modal while it is open
+  const hasDraft = () =>
+    [...document.querySelectorAll('.note-input')].some((input) => input.value.trim()) ||
+    (document.getElementById('edit-modal')?.classList.contains('show') &&
+      Boolean(document.getElementById('edit-note-text')?.value.trim()));
+
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if ((!hadController && !updateRequested) || reloading) return;
-    reloading = true;
-    window.location.reload();
+    const action = controllerChangeAction({ hadController, updateRequested, reloading, hasDraft: hasDraft() });
+    if (action === 'reload') {
+      reloading = true;
+      window.location.reload();
+    } else if (action === 'prompt') {
+      showToast('Uma nova versão foi ativada em outra aba. Recarregue quando terminar de escrever.', {
+        actionLabel: 'Recarregar',
+        timeout: 0,
+        onAction: () => {
+          reloading = true;
+          window.location.reload();
+        }
+      });
+    }
   });
 
   const offerUpdate = (worker) => {

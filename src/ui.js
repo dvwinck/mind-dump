@@ -51,6 +51,20 @@ export function init() {
   console.log('📝 UI initialized');
 }
 
+/** True only when storage is readable and really has no such note (e.g. deleted in another tab). */
+function noteIsGone(noteId) {
+  return storage.isReadable() && !storage.loadAll().some(n => n.id === noteId);
+}
+
+/** loadAll() only reports an unreadable store once, so a retried action explains itself here. */
+function explainIfUnreadable() {
+  if (!storage.isReadable()) {
+    showToast('Não foi possível ler as notas guardadas, então a alteração não foi salva. O texto continua aberto.', {
+      variant: 'danger'
+    });
+  }
+}
+
 function storageProblemMessage({ type, blocked, backedUp, blockedByBackup }) {
   if (type === 'save') {
     return blockedByBackup
@@ -101,7 +115,7 @@ function setupSearch() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       currentSearchQuery = e.target.value.trim();
-      renderAllCategories();
+      rerender();
     }, 200);
   });
 }
@@ -115,12 +129,14 @@ function setupModals() {
     if (editingNoteId && editTextarea.value.trim()) {
       if (storage.updateNote(editingNoteId, { text: editTextarea.value.trim() })) {
         editModal.hide();
-        renderAllCategories();
-      } else if (!storage.loadAll().some(n => n.id === editingNoteId)) {
-        // The note is gone (e.g. deleted in another tab); a failed save keeps the modal open instead
+        rerender();
+      } else if (noteIsGone(editingNoteId)) {
+        // Deleted in another tab. A failed save keeps the modal open instead, so the text is not lost.
         showToast('Esta nota não existe mais: ela foi removida em outra aba.', { variant: 'warning' });
         editModal.hide();
-        renderAllCategories();
+        rerender();
+      } else {
+        explainIfUnreadable();
       }
     }
   });
@@ -136,9 +152,13 @@ function setupModals() {
   // Delete modal - confirm button
   document.getElementById('btn-confirm-delete').addEventListener('click', () => {
     if (deleteNoteId) {
-      storage.deleteNote(deleteNoteId);
-      deleteModal.hide();
-      renderAllCategories();
+      if (storage.deleteNote(deleteNoteId) || noteIsGone(deleteNoteId)) {
+        deleteModal.hide();
+        rerender();
+      } else {
+        // The save failed: keep the modal so the user can retry or cancel (the storage toast says why)
+        explainIfUnreadable();
+      }
     }
   });
 
@@ -184,7 +204,7 @@ function setupExportImport() {
 
       if (result.success) {
         showToast(`Importação concluída: ${result.imported} adicionadas, ${result.updated} atualizadas.`, { variant: 'success' });
-        renderAllCategories();
+        rerender();
       } else {
         showToast(`Erro na importação: ${result.error}`, { variant: 'danger' });
       }
@@ -285,7 +305,7 @@ function setupDragAndDrop() {
 
       if (note && note.category !== newCategory) {
         storage.moveNote(draggedNoteId, newCategory);
-        renderAllCategories();
+        rerender();
       }
 
       column.classList.remove('drop-target');

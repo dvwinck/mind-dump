@@ -312,3 +312,142 @@ describe('data safety in the UI', () => {
     expect(input.value).toBe('かな');
   });
 });
+
+describe('failures around the edit and delete modals', () => {
+  const openEdit = (n) => cardIn(columns('tasks')[1], n.id).querySelector('[data-action="edit"]').click();
+  const openDelete = (n) => cardIn(columns('tasks')[1], n.id).querySelector('[data-action="delete"]').click();
+
+  it('keeps the edit modal open and does not claim the note vanished when storage became unreadable', () => {
+    const n = storage.createNote('old', 'tasks');
+    ui.renderAllCategories();
+    openEdit(n);
+    document.getElementById('edit-note-text').value = 'new';
+
+    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue('{broken');
+    document.getElementById('btn-save-edit').click();
+
+    expect(hideCalls).not.toContain('edit-modal');
+    const messages = [...document.querySelectorAll('#toast-container .toast')].map((t) => t.textContent).join(' | ');
+    expect(messages).not.toMatch(/não existe mais/i);
+    expect(messages).toMatch(/ler|ilegível|salvar/i);
+  });
+
+  it('keeps the delete modal open when the deletion could not be saved', () => {
+    const n = storage.createNote('keep me', 'tasks');
+    ui.renderAllCategories();
+    openDelete(n);
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    document.getElementById('btn-confirm-delete').click();
+
+    expect(hideCalls).not.toContain('delete-modal');
+    expect(storage.loadAll()).toHaveLength(1);
+  });
+
+  it('closes the delete modal when the note was already removed in another tab', () => {
+    const n = storage.createNote('gone', 'tasks');
+    ui.renderAllCategories();
+    openDelete(n);
+
+    storage.deleteNote(n.id);
+    document.getElementById('btn-confirm-delete').click();
+
+    expect(hideCalls).toContain('delete-modal');
+  });
+
+  it('puts focus back on the opening button when the edit modal closes, and focuses the text when it opens', () => {
+    const n = storage.createNote('x', 'tasks');
+    ui.renderAllCategories();
+    const button = cardIn(columns('tasks')[1], n.id).querySelector('[data-action="edit"]');
+    button.focus();
+    button.click();
+    button.blur();
+
+    document.getElementById('edit-modal').dispatchEvent(new Event('shown.bs.modal'));
+    expect(document.activeElement).toBe(document.getElementById('edit-note-text'));
+
+    document.getElementById('edit-modal').dispatchEvent(new Event('hidden.bs.modal'));
+    expect(document.activeElement).toBe(button);
+  });
+});
+
+describe('import file flow', () => {
+  const chooseFile = (content) => {
+    const input = document.getElementById('import-file');
+    Object.defineProperty(input, 'files', { value: [{ text: async () => content }], configurable: true });
+    input.dispatchEvent(new Event('change'));
+  };
+  const toastText = () => [...document.querySelectorAll('#toast-container .toast')].map((t) => t.textContent).join(' | ');
+
+  it('imports a backup file, renders it and reports the result', async () => {
+    chooseFile(JSON.stringify({ version: 1, notes: [{ id: 'imp1', text: 'from file', category: 'projects' }] }));
+
+    await vi.waitFor(() => expect(toastText()).toMatch(/1 adicionadas/));
+    expect(storage.loadAll().map((n) => n.id)).toContain('imp1');
+    expect(document.querySelectorAll('.category-column[data-category="projects"] .note-card')).toHaveLength(2);
+  });
+
+  it('rejects a backup with a hostile id and stores nothing', async () => {
+    chooseFile(JSON.stringify([{ id: "x');alert(1);//", text: 'bad', category: 'tasks' }]));
+
+    await vi.waitFor(() => expect(toastText()).toMatch(/Erro na importação/));
+    expect(storage.loadAll()).toHaveLength(0);
+  });
+
+  it('reports a file that is not JSON', async () => {
+    chooseFile('not json at all');
+
+    await vi.waitFor(() => expect(toastText()).toMatch(/Erro ao ler arquivo/));
+    expect(storage.loadAll()).toHaveLength(0);
+  });
+});
+
+describe('drag and drop between columns', () => {
+  const drag = (type, target, dataTransfer) => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    event.dataTransfer = dataTransfer;
+    target.dispatchEvent(event);
+    return event;
+  };
+  const dataTransfer = () => ({ setData: vi.fn(), effectAllowed: '', dropEffect: '' });
+
+  it('moves a note dropped on another column', () => {
+    const n = storage.createNote('drag me', 'tasks');
+    ui.renderAllCategories();
+    const dt = dataTransfer();
+
+    drag('dragstart', cardIn(columns('tasks')[1], n.id), dt);
+    const over = drag('dragover', columns('projects')[1], dt);
+    expect(over.defaultPrevented).toBe(true);
+    expect(columns('projects')[1].classList.contains('drop-target')).toBe(true);
+    drag('drop', columns('projects')[1], dt);
+
+    expect(storage.loadAll()[0].category).toBe('projects');
+  });
+
+  it('does nothing when dropped on the same column', () => {
+    const n = storage.createNote('stay', 'tasks');
+    ui.renderAllCategories();
+    const dt = dataTransfer();
+    const before = storage.loadAll()[0].updatedAt;
+
+    drag('dragstart', cardIn(columns('tasks')[1], n.id), dt);
+    drag('drop', columns('tasks')[1], dt);
+
+    expect(storage.loadAll()[0].updatedAt).toBe(before);
+  });
+
+  it('ignores dragover and drop when no note is being dragged', () => {
+    storage.createNote('x', 'tasks');
+    ui.renderAllCategories();
+    const dt = dataTransfer();
+
+    const over = drag('dragover', columns('projects')[1], dt);
+    drag('drop', columns('projects')[1], dt);
+
+    expect(over.defaultPrevented).toBe(false);
+    expect(storage.loadAll()[0].category).toBe('tasks');
+  });
+});
