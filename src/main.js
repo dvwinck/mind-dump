@@ -5,12 +5,13 @@
 
 import * as ui from './ui.js';
 import { CATEGORIES } from './categories.js';
+import { showToast } from './toast.js';
 
 // App initialization
 document.addEventListener('DOMContentLoaded', () => {
   console.log('🧠 Mind Dump initialized');
   console.log('Categories:', CATEGORIES.map(c => c.name).join(', '));
-  
+
   // Ask the browser not to evict our data under storage pressure (best effort, may be a no-op)
   navigator.storage?.persist?.();
 
@@ -18,23 +19,33 @@ document.addEventListener('DOMContentLoaded', () => {
   ui.init();
 });
 
-// Service Worker registration
+// Service Worker registration and update flow
 if ('serviceWorker' in navigator) {
+  // On the very first visit the SW claims the page; that must not trigger a reload.
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
+
   window.addEventListener('load', async () => {
     try {
-      const registration = await navigator.serviceWorker.register('/service-worker.js');
+      const registration = await navigator.serviceWorker.register('./service-worker.js');
       console.log('✅ Service Worker registered:', registration.scope);
-      
-      // Check for updates
+
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
-        console.log('🔄 Service Worker update found');
-        
+
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version available
-            console.log('📦 New version available! Refresh to update.');
-            showUpdateNotification();
+            showToast('Nova versão disponível.', {
+              actionLabel: 'Atualizar',
+              timeout: 0,
+              onAction: () => newWorker.postMessage({ type: 'SKIP_WAITING' })
+            });
           }
         });
       });
@@ -42,11 +53,4 @@ if ('serviceWorker' in navigator) {
       console.error('❌ SW registration failed:', error);
     }
   });
-}
-
-// Show update notification (simple alert for now, can be improved later)
-function showUpdateNotification() {
-  if (confirm('Nova versão disponível! Deseja atualizar agora?')) {
-    window.location.reload();
-  }
 }
