@@ -1,8 +1,12 @@
 {
   "name": "mind-dump",
   "version": "1.0.0",
+  "private": true,
   "description": "Bloco de notas para dump mental - SPA + PWA offline-first",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "npx serve",
     "test": "vitest run",
@@ -15,10 +19,18 @@
     "offline-first",
     "mental-dump"
   ],
-  "author": "",
+  "author": "Diogo Winck",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dvwinck/mind-dump.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dvwinck/mind-dump/issues"
+  },
+  "homepage": "https://dvwinck.github.io/mind-dump/",
   "devDependencies": {
     "vitest": "^5.0.4",
-    "jsdom": "^24.0.0"
+    "jsdom": "^30.1.2"
   }
 }

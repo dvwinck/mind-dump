@@ -1,0 +1,12 @@
+# Normaliza finais de linha para LF
+* text=auto eol=lf
+
+# Binarios
+*.png binary
+*.ico binary
+
+# Dependencias de terceiros nao entram nas estatisticas de linguagem
+vendor/** linguist-vendored
+
+# Lockfile: sem diff verboso nos PRs
+package-lock.json -diff linguist-generated

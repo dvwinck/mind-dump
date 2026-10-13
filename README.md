@@ -4,6 +4,10 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![CI](https://github.com/dvwinck/mind-dump/actions/workflows/ci.yml/badge.svg)](https://github.com/dvwinck/mind-dump/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/dvwinck/mind-dump/actions/workflows/codeql.yml/badge.svg)](https://github.com/dvwinck/mind-dump/actions/workflows/codeql.yml)
+
+🌐 **Demo:** https://dvwinck.github.io/mind-dump/
 
 ## ✨ Funcionalidades
 
