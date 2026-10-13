@@ -63,7 +63,7 @@ npm run test:watch
 npm run test:coverage
 ```
 
-**Resultado:** 39 testes passando ✅
+Rode `npm test` para ver o resultado atual.
 
 ## 📁 Estrutura do Projeto
 
@@ -81,12 +81,17 @@ mind-dump/
 │   └── *.svg           # Ícones SVG fonte
 ├── src/
 │   ├── main.js         # Entrada do app + registro SW
+│   ├── categories.js   # Lista única de categorias
 │   ├── storage.js      # API de persistência (localStorage)
+│   ├── render.js       # HTML das notas (sempre escapado)
+│   ├── toast.js        # Avisos na tela
+│   ├── update-flow.js  # Decide o que cada aba faz quando chega uma nova versão
 │   └── ui.js           # UI, eventos, drag & drop
+├── vendor/
+│   └── bootstrap/      # Bootstrap 5.3.2 local (css + js)
 ├── styles/
 │   └── app.css         # Estilos (incluindo dark mode)
-└── tests/
-    └── storage.test.js # Testes unitários
+└── tests/              # Testes (Vitest + jsdom)
 ```
 
 ## 📋 Modelo de Nota
@@ -105,7 +110,7 @@ mind-dump/
 ## 🔧 Tecnologias
 
 - **Frontend:** HTML5, CSS3, JavaScript (ES Modules)
-- **UI Framework:** Bootstrap 5 (via CDN)
+- **UI Framework:** Bootstrap 5.3.2 (local, em `vendor/bootstrap/`)
 - **Persistência:** localStorage
 - **PWA:** Service Worker + manifest.json
 - **Testes:** Vitest + jsdom
@@ -130,7 +135,7 @@ O app detecta automaticamente a preferência do sistema:
 ## ♿ Acessibilidade
 
 - Skip link para navegação por teclado
-- Todos os botões têm `aria-label`
+- Os botões de ação das notas (fixar, editar, mover, excluir) têm `aria-label`
 - Foco visível em todos os elementos interativos
 - Suporte a `prefers-reduced-motion`
 - Suporte a `prefers-contrast: high`
@@ -163,10 +168,12 @@ Clique em "Exportar" para baixar um arquivo JSON com todas as notas.
 ## 🛠️ Desenvolvimento
 
 ### Adicionar nova categoria
-1. Edite `CATEGORIES` em `src/main.js`
-2. Adicione a coluna HTML em `index.html` (desktop e mobile)
+1. Edite `CATEGORIES` em `src/categories.js` (a validação de importação já usa essa lista)
+2. Em `index.html`, adicione a coluna do desktop, o botão da aba (`id="tab-<id>"`) e o painel (`id="panel-<id>"`) com a coluna do mobile; `npm test` falha se faltar qualquer um deles
 3. Adicione a cor da categoria em `styles/app.css`
-4. Atualize `validCategories` em `src/storage.js`
+
+### Publicar uma nova versão
+Troque `CACHE_NAME` em `service-worker.js` sempre que um arquivo em cache mudar. Se criar um arquivo novo, inclua-o em `ASSETS_TO_CACHE` (o teste `tests/service-worker.test.js` avisa se faltar um módulo de `src/` ou um arquivo carregado pelo `index.html`; outros tipos de arquivo, como imagens usadas só pelo CSS, precisam ser lembrados à mão).
 
 ### Modificar estilo do card
 Edite `.note-card` em `styles/app.css`

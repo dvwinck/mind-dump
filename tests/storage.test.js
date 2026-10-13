@@ -410,3 +410,268 @@ describe('Storage Module', () => {
     });
   });
 });
+
+describe('validateImport categories', () => {
+  it.each(['unclear', 'feelings', 'projects', 'desires', 'tasks', 'not-do'])('accepts %s', (category) => {
+    expect(storage.validateImport([{ id: 'a1', text: 'x', category }]).valid).toBe(true);
+  });
+
+  it('rejects an unknown category', () => {
+    expect(storage.validateImport([{ id: 'a1', text: 'x', category: 'nope' }]).valid).toBe(false);
+  });
+});
+
+// The 'Storage Module' tests above leave getItem stuck on mockReturnValue(...) and
+// vi.clearAllMocks() does not undo that, so rebuild a working in-memory mock here.
+function resetMockStorage() {
+  const store = {};
+  vi.clearAllMocks();
+  localStorageMock.getItem.mockImplementation((key) => (key in store ? store[key] : null));
+  localStorageMock.setItem.mockImplementation((key, value) => { store[key] = String(value); });
+  localStorageMock.removeItem.mockImplementation((key) => { delete store[key]; });
+  localStorageMock.clear.mockImplementation(() => { Object.keys(store).forEach((key) => delete store[key]); });
+}
+
+describe('validateImport hardening', () => {
+  beforeEach(resetMockStorage);
+
+  const base = { id: 'a1', text: 'hello', category: 'tasks' };
+  const check = (over) => storage.validateImport([{ ...base, ...over }]);
+
+  it('rejects ids that are not attribute/URL safe', () => {
+    for (const id of ["x');alert(1);//", 'a b', '<img>', 'a"b', '', 'a'.repeat(65)]) {
+      expect(check({ id }).valid, id).toBe(false);
+    }
+  });
+
+  it('accepts ids from generateId and typical ids', () => {
+    expect(check({ id: storage.generateId() }).valid).toBe(true);
+    expect(check({ id: 'note-1_B' }).valid).toBe(true);
+  });
+
+  it('rejects whitespace-only text', () => {
+    expect(check({ text: '   \n ' }).valid).toBe(false);
+  });
+
+  it('rejects non-boolean pinned', () => {
+    expect(check({ pinned: 'yes' }).valid).toBe(false);
+  });
+
+  it('rejects unparseable dates', () => {
+    expect(check({ updatedAt: 'not-a-date' }).valid).toBe(false);
+    expect(check({ createdAt: 123 }).valid).toBe(false);
+  });
+
+  it('rejects entries that are not objects', () => {
+    expect(storage.validateImport([null]).valid).toBe(false);
+    expect(storage.validateImport(['text']).valid).toBe(false);
+  });
+
+  it('accepts a note with only the required fields', () => {
+    expect(check({}).valid).toBe(true);
+  });
+
+  it('does not store anything when mergeImport gets a hostile id', () => {
+    const result = storage.mergeImport([{ ...base, id: "x');alert(1);//" }]);
+    expect(result.success).toBe(false);
+    expect(storage.loadAll()).toEqual([]);
+  });
+});
+
+describe('storage durability', () => {
+  // Each test uses a different unreadable string: loadAll reports/backs up once per distinct value.
+  beforeEach(() => {
+    resetMockStorage();
+    storage.setErrorHandler(null);
+  });
+
+  const backups = () =>
+    localStorageMock.setItem.mock.calls.filter(([key]) => key.startsWith('mind-dump-notes.corrupt-'));
+
+  it('keeps a copy of unreadable data before returning an empty list', () => {
+    localStorageMock.setItem('mind-dump-notes', '{not json');
+    expect(storage.loadAll()).toEqual([]);
+    expect(backups()).toHaveLength(1);
+    expect(backups()[0][1]).toBe('{not json');
+  });
+
+  it('treats valid JSON that is not an array as unreadable', () => {
+    localStorageMock.setItem('mind-dump-notes', '{"a":1}');
+    expect(storage.loadAll()).toEqual([]);
+    expect(backups()[0][1]).toBe('{"a":1}');
+  });
+
+  it('reports unreadable data once while it stays in storage', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.setItem('mind-dump-notes', '{broken-once');
+    storage.loadAll();
+    storage.loadAll();
+    storage.loadAll();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'load' }));
+    expect(backups()).toHaveLength(1);
+  });
+
+  it('returns true when saving works', () => {
+    expect(storage.saveAll([])).toBe(true);
+  });
+
+  it('returns false and notifies the handler when saving fails', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.setItem.mockImplementationOnce(() => {
+      throw new Error('QuotaExceededError');
+    });
+    expect(storage.saveAll([])).toBe(false);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'save' }));
+  });
+
+  it('exports the storage key', () => {
+    expect(storage.STORAGE_KEY).toBe('mind-dump-notes');
+  });
+});
+
+describe('storage failures are not misreported or silently lossy', () => {
+  beforeEach(() => {
+    resetMockStorage();
+    storage.setErrorHandler(null);
+    storage.saveAll([]); // success path clears the module's "already reported" state
+    vi.clearAllMocks();
+  });
+
+  it('reports blocked storage once, without claiming a backup', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.getItem.mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    storage.loadAll();
+    storage.loadAll();
+    storage.loadAll();
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'load', blocked: true, backedUp: false }));
+  });
+
+  it('says a backup exists only when it was really written', () => {
+    localStorageMock.setItem('mind-dump-notes', '{unbacked-1');
+    localStorageMock.setItem.mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+
+    storage.loadAll();
+
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'load', blocked: false, backedUp: false }));
+  });
+
+  it('refuses to overwrite unreadable data it could not back up, then recovers', () => {
+    localStorageMock.setItem('mind-dump-notes', '{unbacked-2');
+    const real = localStorageMock.setItem.getMockImplementation();
+    localStorageMock.setItem.mockImplementation((key, value) => {
+      if (key.startsWith('mind-dump-notes.corrupt-')) throw new Error('QuotaExceededError');
+      return real(key, value);
+    });
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+
+    expect(storage.loadAll()).toEqual([]);
+    expect(storage.createNote('hello', 'tasks')).toBeNull();
+    expect(localStorageMock.getItem('mind-dump-notes')).toBe('{unbacked-2');
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', blockedByBackup: true }));
+
+    // Once the copy can be written, the save goes through and the copy exists first.
+    const written = [];
+    localStorageMock.setItem.mockImplementation((key, value) => {
+      written.push(key);
+      return real(key, value);
+    });
+    expect(storage.createNote('hello', 'tasks')).not.toBeNull();
+    expect(written.some((key) => key.startsWith('mind-dump-notes.corrupt-'))).toBe(true);
+  });
+
+  it('returns null/false and stores nothing when a save fails', () => {
+    const note = storage.createNote('a', 'tasks');
+    expect(note).not.toBeNull();
+    localStorageMock.setItem.mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+
+    expect(storage.createNote('b', 'tasks')).toBeNull();
+    expect(storage.updateNote(note.id, { text: 'x' })).toBeNull();
+    expect(storage.deleteNote(note.id)).toBe(false);
+    expect(storage.mergeImport([{ id: 'zz1', text: 't', category: 'tasks' }])).toEqual(
+      expect.objectContaining({ success: false, imported: 0 })
+    );
+    expect(storage.loadAll()).toHaveLength(1);
+  });
+});
+
+describe('storage follow-ups from the independent review', () => {
+  beforeEach(() => {
+    resetMockStorage();
+    storage.setErrorHandler(null);
+    storage.saveAll([]);
+    vi.clearAllMocks();
+  });
+
+  it('keeps the existing createdAt when an import replaces a note that lacks one', () => {
+    const note = storage.createNote('a', 'tasks');
+    storage.mergeImport([{ id: note.id, text: 'b', category: 'tasks', updatedAt: '2999-01-01T00:00:00.000Z' }]);
+    const stored = storage.loadAll()[0];
+    expect(stored.text).toBe('b');
+    expect(stored.createdAt).toBe(note.createdAt);
+  });
+
+  it('accepts a 64-character id', () => {
+    expect(storage.validateImport([{ id: 'a'.repeat(64), text: 't', category: 'tasks' }]).valid).toBe(true);
+  });
+
+  it('says the copy exists when the backup was written', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.setItem('mind-dump-notes', '{backed-up-ok');
+    storage.loadAll();
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'load', blocked: false, backedUp: true }));
+  });
+
+  it('reports the same unreadable text again after a successful save in between', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.setItem('mind-dump-notes', '{again');
+    storage.loadAll();
+    storage.loadAll();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(storage.saveAll([])).toBe(true);
+    localStorageMock.setItem('mind-dump-notes', '{again');
+    storage.loadAll();
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it('isReadable tells readable storage from corrupt or blocked storage', () => {
+    expect(storage.isReadable()).toBe(true);
+    localStorageMock.setItem('mind-dump-notes', '{nope');
+    expect(storage.isReadable()).toBe(false);
+    localStorageMock.setItem('mind-dump-notes', '[]');
+    expect(storage.isReadable()).toBe(true);
+    localStorageMock.getItem.mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    expect(storage.isReadable()).toBe(false);
+  });
+
+  it('writes each backup under a distinct key even within the same millisecond', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
+    localStorageMock.setItem('mind-dump-notes', '{first');
+    storage.loadAll();
+    localStorageMock.setItem('mind-dump-notes', '{second');
+    storage.loadAll();
+    const keys = localStorageMock.setItem.mock.calls
+      .map(([key]) => key)
+      .filter((key) => key.startsWith('mind-dump-notes.corrupt-'));
+    expect(new Set(keys).size).toBe(2);
+    vi.restoreAllMocks();
+  });
+});
