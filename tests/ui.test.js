@@ -184,3 +184,29 @@ describe('keyboard behavior', () => {
     expect(document.activeElement).toBe(column.querySelector('.note-input'));
   });
 });
+
+describe('storage problems are shown to the user', () => {
+  it('shows a danger toast when saving fails', () => {
+    const n = storage.createNote('a', 'tasks');
+    ui.renderAllCategories();
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+
+    cardIn(columns('tasks')[1], n.id).querySelector('[data-action="pin"]').click();
+
+    const toast = document.querySelector('#toast-container .toast');
+    expect(toast).not.toBeNull();
+    expect(toast.getAttribute('role')).toBe('alert');
+    expect(toast.textContent).toMatch(/salvar/i);
+  });
+
+  it('shows a toast and keeps a copy when the saved data is unreadable', async () => {
+    localStorage.setItem('mind-dump-notes', '{corrupt');
+    await boot();
+
+    expect(document.querySelector('#toast-container .toast').textContent).toMatch(/cópia/i);
+    const backupKey = Object.keys(localStorage).find((k) => k.startsWith('mind-dump-notes.corrupt-'));
+    expect(localStorage.getItem(backupKey)).toBe('{corrupt');
+  });
+});

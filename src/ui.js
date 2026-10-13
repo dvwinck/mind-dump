@@ -6,6 +6,7 @@
 import * as storage from './storage.js';
 import { CATEGORIES } from './categories.js';
 import { renderNoteCard } from './render.js';
+import { showToast } from './toast.js';
 
 // State
 let currentSearchQuery = '';
@@ -25,6 +26,14 @@ export function init() {
   editModal = new bootstrap.Modal(document.getElementById('edit-modal'));
   deleteModal = new bootstrap.Modal(document.getElementById('delete-modal'));
   editTextarea = document.getElementById('edit-note-text');
+
+  // Surface storage problems instead of failing silently
+  storage.setErrorHandler(({ type }) => {
+    const message = type === 'save'
+      ? 'Não foi possível salvar. O armazenamento do navegador pode estar cheio ou bloqueado: exporte um backup.'
+      : 'Não foi possível ler as notas salvas. Uma cópia do conteúdo foi mantida no armazenamento do navegador.';
+    showToast(message, { variant: 'danger', timeout: 10000 });
+  });
 
   // Setup event listeners
   setupNoteInputs();
@@ -149,13 +158,13 @@ function setupExportImport() {
       const result = storage.mergeImport(data);
 
       if (result.success) {
-        alert(`Importação concluída!\n${result.imported} notas adicionadas\n${result.updated} notas atualizadas`);
+        showToast(`Importação concluída: ${result.imported} adicionadas, ${result.updated} atualizadas.`, { variant: 'success' });
         renderAllCategories();
       } else {
-        alert(`Erro na importação: ${result.error}`);
+        showToast(`Erro na importação: ${result.error}`, { variant: 'danger' });
       }
     } catch (error) {
-      alert('Erro ao ler arquivo: ' + error.message);
+      showToast('Erro ao ler arquivo: ' + error.message, { variant: 'danger' });
     }
 
     // Reset file input
