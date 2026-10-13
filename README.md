@@ -63,7 +63,7 @@ npm run test:watch
 npm run test:coverage
 ```
 
-**Resultado:** 39 testes passando ✅
+Rode `npm test` para ver o resultado atual.
 
 ## 📁 Estrutura do Projeto
 
@@ -81,12 +81,16 @@ mind-dump/
 │   └── *.svg           # Ícones SVG fonte
 ├── src/
 │   ├── main.js         # Entrada do app + registro SW
+│   ├── categories.js   # Lista única de categorias
 │   ├── storage.js      # API de persistência (localStorage)
+│   ├── render.js       # HTML das notas (sempre escapado)
+│   ├── toast.js        # Avisos na tela
 │   └── ui.js           # UI, eventos, drag & drop
+├── vendor/
+│   └── bootstrap/      # Bootstrap 5.3.2 local (css + js)
 ├── styles/
 │   └── app.css         # Estilos (incluindo dark mode)
-└── tests/
-    └── storage.test.js # Testes unitários
+└── tests/              # Testes (Vitest + jsdom)
 ```
 
 ## 📋 Modelo de Nota
@@ -105,7 +109,7 @@ mind-dump/
 ## 🔧 Tecnologias
 
 - **Frontend:** HTML5, CSS3, JavaScript (ES Modules)
-- **UI Framework:** Bootstrap 5 (via CDN)
+- **UI Framework:** Bootstrap 5.3.2 (local, em `vendor/bootstrap/`)
 - **Persistência:** localStorage
 - **PWA:** Service Worker + manifest.json
 - **Testes:** Vitest + jsdom
@@ -163,10 +167,12 @@ Clique em "Exportar" para baixar um arquivo JSON com todas as notas.
 ## 🛠️ Desenvolvimento
 
 ### Adicionar nova categoria
-1. Edite `CATEGORIES` em `src/main.js`
-2. Adicione a coluna HTML em `index.html` (desktop e mobile)
+1. Edite `CATEGORIES` em `src/categories.js` (a validação de importação já usa essa lista)
+2. Adicione a coluna HTML em `index.html` (desktop e mobile); `npm test` falha se faltar uma delas
 3. Adicione a cor da categoria em `styles/app.css`
-4. Atualize `validCategories` em `src/storage.js`
+
+### Publicar uma nova versão
+Troque `CACHE_NAME` em `service-worker.js` sempre que um arquivo em cache mudar. Se criar um arquivo novo, inclua-o em `ASSETS_TO_CACHE` (o teste `tests/service-worker.test.js` avisa se faltar).
 
 ### Modificar estilo do card
 Edite `.note-card` em `styles/app.css`
