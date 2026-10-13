@@ -9,7 +9,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.js'],
-      exclude: ['src/ui.js', 'src/main.js']
+      exclude: ['src/main.js']
     }
   }
 });
