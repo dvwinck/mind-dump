@@ -1,0 +1,6 @@
+# Dono padrao de todo o repositorio
+* @dvwinck
+
+# Mudancas em CI, deploy e seguranca exigem revisao explicita
+/.github/ @dvwinck
+/service-worker.js @dvwinck

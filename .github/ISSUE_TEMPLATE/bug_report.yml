@@ -1,0 +1,46 @@
+name: Bug
+description: Algo não funciona como deveria
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o problema com o máximo de clareza.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Abra o app
+        2. Crie uma nota ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Navegador
+      options: [Chrome, Edge, Safari, Firefox, Outro]
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Como você usa o app?
+      options: [No navegador, PWA instalado, Offline]
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Erros do console (opcional)
+      render: shell
