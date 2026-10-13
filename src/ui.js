@@ -43,6 +43,11 @@ export function init() {
   setupNoteActions();
   setupDragAndDrop();
 
+  // Another tab changed the notes (or cleared storage): refresh what we show
+  window.addEventListener('storage', (e) => {
+    if (e.key === null || e.key === storage.STORAGE_KEY) rerender();
+  });
+
   // Initial render
   renderAllCategories();
 

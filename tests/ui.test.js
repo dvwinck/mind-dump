@@ -210,3 +210,22 @@ describe('storage problems are shown to the user', () => {
     expect(localStorage.getItem(backupKey)).toBe('{corrupt');
   });
 });
+
+describe('cross-tab sync', () => {
+  const external = {
+    id: 'x1', text: 'from another tab', category: 'tasks', pinned: false,
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z'
+  };
+
+  it('re-renders when another tab changes the notes', () => {
+    localStorage.setItem('mind-dump-notes', JSON.stringify([external]));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mind-dump-notes' }));
+    expect(document.querySelectorAll('.category-column[data-category="tasks"] .note-card')).toHaveLength(2);
+  });
+
+  it('ignores changes to unrelated keys', () => {
+    localStorage.setItem('mind-dump-notes', JSON.stringify([external]));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'something-else' }));
+    expect(document.querySelectorAll('.note-card')).toHaveLength(0);
+  });
+});
