@@ -6,12 +6,17 @@
 import { CATEGORY_IDS } from './categories.js';
 
 const STORAGE_KEY = 'mind-dump-notes';
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+function isValidDate(value) {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
 
 /**
  * Generate unique ID
  */
 export function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 11);
 }
 
 /**
@@ -207,14 +212,25 @@ export function validateImport(data) {
   
   // Validate each note has required fields
   for (const note of notes) {
-    if (!note.id || typeof note.id !== 'string') {
+    if (!note || typeof note !== 'object') {
+      return { valid: false, error: 'Nota inválida' };
+    }
+    if (typeof note.id !== 'string' || !ID_PATTERN.test(note.id)) {
       return { valid: false, error: 'Nota sem ID válido' };
     }
-    if (!note.text || typeof note.text !== 'string') {
+    if (typeof note.text !== 'string' || !note.text.trim()) {
       return { valid: false, error: `Nota ${note.id} sem texto válido` };
     }
-    if (!note.category || !CATEGORY_IDS.includes(note.category)) {
+    if (!CATEGORY_IDS.includes(note.category)) {
       return { valid: false, error: `Nota ${note.id} com categoria inválida: ${note.category}` };
+    }
+    if (note.pinned !== undefined && typeof note.pinned !== 'boolean') {
+      return { valid: false, error: `Nota ${note.id} com pinned inválido` };
+    }
+    for (const field of ['createdAt', 'updatedAt']) {
+      if (note[field] !== undefined && !isValidDate(note[field])) {
+        return { valid: false, error: `Nota ${note.id} com ${field} inválido` };
+      }
     }
   }
   

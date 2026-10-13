@@ -420,3 +420,60 @@ describe('validateImport categories', () => {
     expect(storage.validateImport([{ id: 'a1', text: 'x', category: 'nope' }]).valid).toBe(false);
   });
 });
+
+// The 'Storage Module' tests above leave getItem stuck on mockReturnValue(...) and
+// vi.clearAllMocks() does not undo that, so rebuild a working in-memory mock here.
+function resetMockStorage() {
+  const store = {};
+  vi.clearAllMocks();
+  localStorageMock.getItem.mockImplementation((key) => (key in store ? store[key] : null));
+  localStorageMock.setItem.mockImplementation((key, value) => { store[key] = String(value); });
+  localStorageMock.removeItem.mockImplementation((key) => { delete store[key]; });
+  localStorageMock.clear.mockImplementation(() => { Object.keys(store).forEach((key) => delete store[key]); });
+}
+
+describe('validateImport hardening', () => {
+  beforeEach(resetMockStorage);
+
+  const base = { id: 'a1', text: 'hello', category: 'tasks' };
+  const check = (over) => storage.validateImport([{ ...base, ...over }]);
+
+  it('rejects ids that are not attribute/URL safe', () => {
+    for (const id of ["x');alert(1);//", 'a b', '<img>', 'a"b', '', 'a'.repeat(65)]) {
+      expect(check({ id }).valid, id).toBe(false);
+    }
+  });
+
+  it('accepts ids from generateId and typical ids', () => {
+    expect(check({ id: storage.generateId() }).valid).toBe(true);
+    expect(check({ id: 'note-1_B' }).valid).toBe(true);
+  });
+
+  it('rejects whitespace-only text', () => {
+    expect(check({ text: '   \n ' }).valid).toBe(false);
+  });
+
+  it('rejects non-boolean pinned', () => {
+    expect(check({ pinned: 'yes' }).valid).toBe(false);
+  });
+
+  it('rejects unparseable dates', () => {
+    expect(check({ updatedAt: 'not-a-date' }).valid).toBe(false);
+    expect(check({ createdAt: 123 }).valid).toBe(false);
+  });
+
+  it('rejects entries that are not objects', () => {
+    expect(storage.validateImport([null]).valid).toBe(false);
+    expect(storage.validateImport(['text']).valid).toBe(false);
+  });
+
+  it('accepts a note with only the required fields', () => {
+    expect(check({}).valid).toBe(true);
+  });
+
+  it('does not store anything when mergeImport gets a hostile id', () => {
+    const result = storage.mergeImport([{ ...base, id: "x');alert(1);//" }]);
+    expect(result.success).toBe(false);
+    expect(storage.loadAll()).toEqual([]);
+  });
+});
