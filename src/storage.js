@@ -5,8 +5,31 @@
 
 import { CATEGORY_IDS } from './categories.js';
 
-const STORAGE_KEY = 'mind-dump-notes';
+export const STORAGE_KEY = 'mind-dump-notes';
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+let errorHandler = null;
+let reportedUnreadable = null;
+
+/**
+ * Register a callback for storage problems: fn({ type: 'load' | 'save', error }).
+ */
+export function setErrorHandler(fn) {
+  errorHandler = fn;
+}
+
+function reportError(type, error) {
+  console.error(`Storage ${type} error:`, error);
+  if (errorHandler) errorHandler({ type, error });
+}
+
+function backupUnreadable(raw) {
+  try {
+    localStorage.setItem(`${STORAGE_KEY}.corrupt-${Date.now()}`, raw);
+  } catch (error) {
+    console.error('Could not back up unreadable notes:', error);
+  }
+}
 
 function isValidDate(value) {
   return typeof value === 'string' && !Number.isNaN(Date.parse(value));
@@ -27,15 +50,24 @@ export function now() {
 }
 
 /**
- * Load all notes from localStorage
+ * Load all notes from localStorage.
+ * Unreadable content is copied aside (once) and an empty list is returned.
  * @returns {Array} Array of note objects
  */
 export function loadAll() {
+  let raw = null;
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data)) throw new Error('Stored notes are not an array');
+    return data;
   } catch (error) {
-    console.error('Error loading notes:', error);
+    if (raw === null || raw !== reportedUnreadable) {
+      reportedUnreadable = raw;
+      if (raw) backupUnreadable(raw);
+      reportError('load', error);
+    }
     return [];
   }
 }
@@ -43,12 +75,16 @@ export function loadAll() {
 /**
  * Save all notes to localStorage
  * @param {Array} notes - Array of note objects
+ * @returns {boolean} true if saved, false if the browser refused
  */
 export function saveAll(notes) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+    reportedUnreadable = null;
+    return true;
   } catch (error) {
-    console.error('Error saving notes:', error);
+    reportError('save', error);
+    return false;
   }
 }
 

@@ -477,3 +477,57 @@ describe('validateImport hardening', () => {
     expect(storage.loadAll()).toEqual([]);
   });
 });
+
+describe('storage durability', () => {
+  // Each test uses a different unreadable string: loadAll reports/backs up once per distinct value.
+  beforeEach(() => {
+    resetMockStorage();
+    storage.setErrorHandler(null);
+  });
+
+  const backups = () =>
+    localStorageMock.setItem.mock.calls.filter(([key]) => key.startsWith('mind-dump-notes.corrupt-'));
+
+  it('keeps a copy of unreadable data before returning an empty list', () => {
+    localStorageMock.setItem('mind-dump-notes', '{not json');
+    expect(storage.loadAll()).toEqual([]);
+    expect(backups()).toHaveLength(1);
+    expect(backups()[0][1]).toBe('{not json');
+  });
+
+  it('treats valid JSON that is not an array as unreadable', () => {
+    localStorageMock.setItem('mind-dump-notes', '{"a":1}');
+    expect(storage.loadAll()).toEqual([]);
+    expect(backups()[0][1]).toBe('{"a":1}');
+  });
+
+  it('reports unreadable data once while it stays in storage', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.setItem('mind-dump-notes', '{broken-once');
+    storage.loadAll();
+    storage.loadAll();
+    storage.loadAll();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'load' }));
+    expect(backups()).toHaveLength(1);
+  });
+
+  it('returns true when saving works', () => {
+    expect(storage.saveAll([])).toBe(true);
+  });
+
+  it('returns false and notifies the handler when saving fails', () => {
+    const handler = vi.fn();
+    storage.setErrorHandler(handler);
+    localStorageMock.setItem.mockImplementationOnce(() => {
+      throw new Error('QuotaExceededError');
+    });
+    expect(storage.saveAll([])).toBe(false);
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'save' }));
+  });
+
+  it('exports the storage key', () => {
+    expect(storage.STORAGE_KEY).toBe('mind-dump-notes');
+  });
+});

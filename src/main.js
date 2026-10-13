@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('🧠 Mind Dump initialized');
   console.log('Categories:', CATEGORIES.map(c => c.name).join(', '));
   
+  // Ask the browser not to evict our data under storage pressure (best effort, may be a no-op)
+  navigator.storage?.persist?.();
+
   // Initialize UI (includes storage, drag & drop, export/import)
   ui.init();
 });
