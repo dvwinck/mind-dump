@@ -20,3 +20,10 @@ coverage/
 
 # Build
 dist/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Pages build
+_site/
