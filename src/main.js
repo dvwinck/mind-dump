@@ -4,16 +4,7 @@
  */
 
 import * as ui from './ui.js';
-
-// Categories configuration
-export const CATEGORIES = [
-  { id: 'unclear', name: 'Demandas com pouca clareza' },
-  { id: 'feelings', name: 'Sentimentos' },
-  { id: 'projects', name: 'Projetos' },
-  { id: 'desires', name: 'Desejos' },
-  { id: 'tasks', name: 'Tarefas' },
-  { id: 'not-do', name: 'Não fazer' }
-];
+import { CATEGORIES } from './categories.js';
 
 // App initialization
 document.addEventListener('DOMContentLoaded', () => {

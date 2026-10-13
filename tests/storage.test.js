@@ -410,3 +410,13 @@ describe('Storage Module', () => {
     });
   });
 });
+
+describe('validateImport categories', () => {
+  it.each(['unclear', 'feelings', 'projects', 'desires', 'tasks', 'not-do'])('accepts %s', (category) => {
+    expect(storage.validateImport([{ id: 'a1', text: 'x', category }]).valid).toBe(true);
+  });
+
+  it('rejects an unknown category', () => {
+    expect(storage.validateImport([{ id: 'a1', text: 'x', category: 'nope' }]).valid).toBe(false);
+  });
+});

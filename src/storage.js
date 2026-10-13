@@ -3,6 +3,8 @@
  * Handles localStorage persistence for notes
  */
 
+import { CATEGORY_IDS } from './categories.js';
+
 const STORAGE_KEY = 'mind-dump-notes';
 
 /**
@@ -204,8 +206,6 @@ export function validateImport(data) {
   }
   
   // Validate each note has required fields
-  const validCategories = ['unclear', 'feelings', 'projects', 'desires', 'tasks', 'not-do'];
-  
   for (const note of notes) {
     if (!note.id || typeof note.id !== 'string') {
       return { valid: false, error: 'Nota sem ID válido' };
@@ -213,7 +213,7 @@ export function validateImport(data) {
     if (!note.text || typeof note.text !== 'string') {
       return { valid: false, error: `Nota ${note.id} sem texto válido` };
     }
-    if (!note.category || !validCategories.includes(note.category)) {
+    if (!note.category || !CATEGORY_IDS.includes(note.category)) {
       return { valid: false, error: `Nota ${note.id} com categoria inválida: ${note.category}` };
     }
   }

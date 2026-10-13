@@ -4,7 +4,7 @@
  */
 
 import * as storage from './storage.js';
-import { CATEGORIES } from './main.js';
+import { CATEGORIES } from './categories.js';
 
 // State
 let currentSearchQuery = '';
